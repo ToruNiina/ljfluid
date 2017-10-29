@@ -6,6 +6,19 @@ namespace lj
 {
 
 template<typename T>
+vector<T> adjust_direction(vector<T> pos,
+        const vector<T>& size, const vector<T>& size_half)
+{
+         if(pos.x < -size_half.x) pos.x += size.x;
+    else if(pos.x >  size_half.x) pos.x -= size.x;
+         if(pos.y < -size_half.y) pos.y += size.y;
+    else if(pos.y >  size_half.y) pos.y -= size.y;
+         if(pos.z < -size_half.z) pos.z += size.z;
+    else if(pos.z >  size_half.z) pos.z -= size.z;
+    return pos;
+}
+
+template<typename T>
 vector<T> adjust_position(vector<T> pos,
         const vector<T>& upper, const vector<T>& lower, const vector<T>& size)
 {
