@@ -1,5 +1,5 @@
-#include "particle.hpp"
-#include "boundary_condition.hpp"
+#include <lj/particle.hpp>
+#include <lj/boundary_condition.hpp>
 #include <iterator>
 #include <random>
 

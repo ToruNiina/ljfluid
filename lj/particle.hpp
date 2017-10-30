@@ -1,6 +1,7 @@
 #ifndef LJ_PARTICLE
 #define LJ_PARTICLE
-#include "vector.hpp"
+#include <lj/vector.hpp>
+#include <vector>
 #include <iostream>
 #include <iomanip>
 

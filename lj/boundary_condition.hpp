@@ -1,6 +1,6 @@
 #ifndef LJ_BOUNDARY_CONDITION
 #define LJ_BOUNDARY_CONDITION
-#include "vector.hpp"
+#include <lj/vector.hpp>
 
 namespace lj
 {
