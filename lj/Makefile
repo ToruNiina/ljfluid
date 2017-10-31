@@ -4,7 +4,7 @@ help: ## print this help
 
 .PHONY: build
 build: ## build the code
-	g++ -std=c++14 -I../ main.cpp -o main.out
+	g++ -std=c++11 -O3 -ffast-math -march=native -I../ main.cpp -o main.out
 
 .PHONY: run
 run: ## run simulation and write the result to "traj.xyz" and "energy.dat"
