@@ -49,15 +49,12 @@ struct grid
 
         thrust::transform(ps.begin(), ps.end(), cellids.begin(),
             [this, rx, ry, rz] __device__ (const particle& p) -> std::size_t {
-                const std::size_t ix = floorf(p.position.x * rx);
-                const std::size_t iy = floorf(p.position.y * ry);
-                const std::size_t iz = floorf(p.position.z * rz);
-                return this->calc_index(ix, iy, iz);
+                return this->calc_index(p.position);
             });
 
         thrust::stable_sort_by_key(cellids.begin(), cellids.end(), idxs.begin());
-        // cellids = {0, 0, 1, 1, 1, 3, 3, ... } // cell ids
-        // idxs    = {9, 6, 5, 7, 2, 4, 1, ... } // particle idx in the cell
+        // cellids = {0, 0, 1, 1, 1, 3, 3, 4, ... } // cell ids
+        // idxs    = {6, 9, 2, 5, 7, 1, 4, 3, ... } // particle idx in the cell
         // cell   -> {2, 3, 0, 2, ...} // number of particles in each cell
 
         //XXX avoid empty cell problem (in the above case, cell#2 has nothing)
@@ -75,6 +72,15 @@ struct grid
         thrust::gather(filled_grids.begin(), ends.first,
                        num_in_cell.begin(), cell.begin());
         return;
+    }
+
+    __host__ __device__
+    std::size_t calc_index(const float4& pos) const
+    {
+        const std::size_t ix = floorf(pos.x * rx);
+        const std::size_t iy = floorf(pos.y * ry);
+        const std::size_t iz = floorf(pos.z * rz);
+        return this->calc_index(ix, iy, iz);
     }
 
     float       rc;
