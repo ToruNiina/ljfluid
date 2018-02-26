@@ -37,6 +37,49 @@ float kinetic_energy(const particle_container& ps)
         ) * 0.5;
 }
 
+struct velocity_verlet_update_1
+{
+    velocity_verlet_update_1(float dt_, periodic_boundary b_)
+        : dt(dt_), dt_half(dt_ * 0.5), b(b_)
+    {}
+
+    __device__ __host__
+    thrust::tuple<float4, float4>
+    operator()(const thrust::tuple<float, float4, float4, float4>& mpvf) const noexcept
+    {
+        const float4 p_next = adjust_position(
+                thrust::get<1>(mpvf) + dt * thrust::get<2>(mpvf) +
+                (dt * dt_half / thrust::get<0>(mpvf)) * thrust::get<3>(mpvf), b);
+
+        const float4 v_next = thrust::get<2>(mpvf) +
+                (dt_half / thrust::get<0>(mpvf)) * thrust::get<3>(mpvf);
+        return thrust::make_tuple(p_next, v_next);
+    }
+
+    const float dt;
+    const float dt_half;
+    const periodic_boundary b;
+};
+
+struct velocity_verlet_update_2
+{
+    velocity_verlet_update_2(float dt_)
+        : dt(dt_), dt_half(dt_ * 0.5)
+    {}
+
+    __device__ __host__
+    thrust::tuple<float4, float4>
+    operator()(const thrust::tuple<float, float4, float4, float4>& mpvf) const noexcept
+    {
+        const float4 v_next = thrust::get<2>(mpvf) +
+                (dt_half / thrust::get<0>(mpvf)) * thrust::get<3>(mpvf);
+        return thrust::make_tuple(v_next, make_float4(0., 0., 0., 0.));
+    }
+
+    const float dt;
+    const float dt_half;
+};
+
 } // lj
 
 struct tuple_vector_converter
@@ -67,6 +110,7 @@ int main()
     const float4 lower    = make_float4( 0.0,  0.0,  0.0, 0.0);
     const auto   boundary = lj::make_boundary(lower, upper);
 
+    const std::size_t step = 1000;
     const std::size_t N    = std::pow(16, 3);
     const std::size_t seed = 123456789;
     const float kB  = 1.986231313e-3;
@@ -124,13 +168,13 @@ int main()
     ps.pull_device_particles();
 
     {
-        std::ofstream traj("traj.dat");
+        std::ofstream traj("traj.xyz");
         traj << ps.host_positions.size() << "\n\n";
         for(auto iter = ps.host_positions.begin(), iend = ps.host_positions.end();
                 iter != iend; ++iter)
         {
             const auto& v = *iter;
-            traj << "C      " << std::fixed << std::setprecision(5) << std::showpoint
+            traj << "H      " << std::fixed << std::setprecision(5) << std::showpoint
                  << std::setw(10) << std::right << v.x
                  << std::setw(10) << std::right << v.y
                  << std::setw(10) << std::right << v.z << '\n';
@@ -140,6 +184,7 @@ int main()
     std::cerr << "kinetic energy = " << lj::kinetic_energy(ps)
               << ", 3/2 NkBT = " << N * kB * T * 1.5 << std::endl;
 
+    //TODO: add potential
     lj::grid grid(lj::sgm() * 3, boundary);
 
 //     std::cerr << grid.Nx << std::endl;
@@ -159,9 +204,50 @@ int main()
 //         ++idx;
 //     }
 
-    //TODO
+    const lj::velocity_verlet_update_1 update1(dt, boundary);
+    const lj::velocity_verlet_update_2 update2(dt);
+    for(std::size_t s=0; s < step; ++s)
+    {
+        thrust::transform(thrust::make_zip_iterator(thrust::make_tuple(
+                ps.device_masses.begin(), ps.device_positions.begin(),
+                ps.device_velocities.begin(), ps.device_forces.begin())),
+            thrust::make_zip_iterator(thrust::make_tuple(
+                ps.device_masses.end(), ps.device_positions.end(),
+                ps.device_velocities.end(), ps.device_forces.end())),
+            thrust::make_zip_iterator(thrust::make_tuple(
+                ps.device_positions.begin(), ps.device_velocities.begin())),
+            update1);
 
+        // calc force here
 
+        thrust::transform(thrust::make_zip_iterator(thrust::make_tuple(
+                ps.device_masses.begin(), ps.device_positions.begin(),
+                ps.device_velocities.begin(), ps.device_forces.begin())),
+            thrust::make_zip_iterator(thrust::make_tuple(
+                ps.device_masses.end(), ps.device_positions.end(),
+                ps.device_velocities.end(), ps.device_forces.end())),
+            thrust::make_zip_iterator(thrust::make_tuple(
+                ps.device_velocities.begin(), ps.device_forces.begin())),
+            update2);
+
+        ps.pull_device_particles();
+
+        {
+            std::ofstream traj("traj.xyz",
+                    std::ios_base::app | std::ios_base::out);
+
+            traj << ps.host_positions.size() << "\n\n";
+            for(auto iter = ps.host_positions.begin(), iend = ps.host_positions.end();
+                    iter != iend; ++iter)
+            {
+                const auto& v = *iter;
+                traj << "H      " << std::fixed << std::setprecision(5) << std::showpoint
+                     << std::setw(10) << std::right << v.x
+                     << std::setw(10) << std::right << v.y
+                     << std::setw(10) << std::right << v.z << '\n';
+            }
+        }
+    }
 
     return 0;
 }
