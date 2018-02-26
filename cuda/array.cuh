@@ -1,6 +1,5 @@
 #ifndef LJ_ARRAY_H
 #define LJ_ARRAY_H
-#include <thrust/iterator.h>
 
 namespace lj
 {
