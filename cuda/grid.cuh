@@ -28,36 +28,43 @@ struct make_adjacents
         const std::size_t y = (idx / Nx) % Ny;
         const std::size_t z = (idx / Nx / Ny);
 
+        const std::size_t x_prev = (x ==    0) ? Nx-1 : x-1;
+        const std::size_t x_next = (x == Nx-1) ?    0 : x+1;
+        const std::size_t y_prev = (y ==    0) ? Ny-1 : y-1;
+        const std::size_t y_next = (y == Ny-1) ?    0 : y+1;
+        const std::size_t z_prev = (z ==    0) ? Nz-1 : z-1;
+        const std::size_t z_next = (z == Nz-1) ?    0 : z+1;
+
         ::lj::array<std::size_t, 27> adjacents;
-        adjacents[ 0] = calc_index((x  == 0 ? Nx-1 : x-1), (y  == 0 ? Ny-1 : y-1), (z==0 ? Nz-1 : z-1));
-        adjacents[ 1] = calc_index( x,                     (y  == 0 ? Ny-1 : y-1), (z==0 ? Nz-1 : z-1));
-        adjacents[ 2] = calc_index((x+1==Nx ?    0 : x+1), (y  == 0 ? Ny-1 : y-1), (z==0 ? Nz-1 : z-1));
-        adjacents[ 3] = calc_index((x  == 0 ? Nx-1 : x-1), y,                      (z==0 ? Nz-1 : z-1));
-        adjacents[ 4] = calc_index( x,                     y,                      (z==0 ? Nz-1 : z-1));
-        adjacents[ 5] = calc_index((x+1==Nx ?    0 : x+1), y,                      (z==0 ? Nz-1 : z-1));
-        adjacents[ 6] = calc_index((x  == 0 ? Nx-1 : x-1), (y+1==Ny ?    0 : y+1), (z==0 ? Nz-1 : z-1));
-        adjacents[ 7] = calc_index( x,                     (y+1==Ny ?    0 : y+1), (z==0 ? Nz-1 : z-1));
-        adjacents[ 8] = calc_index((x+1==Nx ?    0 : x+1), (y+1==Ny ?    0 : y+1), (z==0 ? Nz-1 : z-1));
+        adjacents[ 0] = calc_index(x_prev, y_prev, z_prev);
+        adjacents[ 1] = calc_index(x,      y_prev, z_prev);
+        adjacents[ 2] = calc_index(x_next, y_prev, z_prev);
+        adjacents[ 3] = calc_index(x_prev, y,      z_prev);
+        adjacents[ 4] = calc_index(x,      y,      z_prev);
+        adjacents[ 5] = calc_index(x_next, y,      z_prev);
+        adjacents[ 6] = calc_index(x_prev, y_next, z_prev);
+        adjacents[ 7] = calc_index(x,      y_next, z_prev);
+        adjacents[ 8] = calc_index(x_next, y_next, z_prev);
 
-        adjacents[ 9] = calc_index((x  == 0 ? Nx-1 : x-1), (y  == 0 ? Ny-1 : y-1), z);
-        adjacents[10] = calc_index( x,                     (y  == 0 ? Ny-1 : y-1), z);
-        adjacents[11] = calc_index((x+1==Nx ?    0 : x+1), (y  == 0 ? Ny-1 : y-1), z);
-        adjacents[12] = calc_index((x  == 0 ? Nx-1 : x-1), y,                      z);
-        adjacents[13] = calc_index( x,                     y,                      z);
-        adjacents[14] = calc_index((x+1==Nx ?    0 : x+1), y,                      z);
-        adjacents[15] = calc_index((x  == 0 ? Nx-1 : x-1), (y+1==Ny ?    0 : y+1), z);
-        adjacents[16] = calc_index( x,                     (y+1==Ny ?    0 : y+1), z);
-        adjacents[17] = calc_index((x+1==Nx ?    0 : x+1), (y+1==Ny ?    0 : y+1), z);
+        adjacents[ 9] = calc_index(x_prev, y_prev, z);
+        adjacents[10] = calc_index(x,      y_prev, z);
+        adjacents[11] = calc_index(x_next, y_prev, z);
+        adjacents[12] = calc_index(x_prev, y,      z);
+        adjacents[13] = calc_index(x,      y,      z);
+        adjacents[14] = calc_index(x_next, y,      z);
+        adjacents[15] = calc_index(x_prev, y_next, z);
+        adjacents[16] = calc_index(x,      y_next, z);
+        adjacents[17] = calc_index(x_next, y_next, z);
 
-        adjacents[18] = calc_index((x  == 0 ? Nx-1 : x-1), (y  == 0 ? Ny-1 : y-1), (z+1==Nz ? 0 : z+1));
-        adjacents[19] = calc_index( x,                     (y  == 0 ? Ny-1 : y-1), (z+1==Nz ? 0 : z+1));
-        adjacents[20] = calc_index((x+1==Nx ?    0 : x+1), (y  == 0 ? Ny-1 : y-1), (z+1==Nz ? 0 : z+1));
-        adjacents[21] = calc_index((x  == 0 ? Nx-1 : x-1), y,                      (z+1==Nz ? 0 : z+1));
-        adjacents[22] = calc_index( x,                     y,                      (z+1==Nz ? 0 : z+1));
-        adjacents[23] = calc_index((x+1==Nx ?    0 : x+1), y,                      (z+1==Nz ? 0 : z+1));
-        adjacents[24] = calc_index((x  == 0 ? Nx-1 : x-1), (y+1==Ny ?    0 : y+1), (z+1==Nz ? 0 : z+1));
-        adjacents[25] = calc_index( x,                     (y+1==Ny ?    0 : y+1), (z+1==Nz ? 0 : z+1));
-        adjacents[26] = calc_index((x+1==Nx ?    0 : x+1), (y+1==Ny ?    0 : y+1), (z+1==Nz ? 0 : z+1));
+        adjacents[18] = calc_index(x_prev, y_prev, z_next);
+        adjacents[19] = calc_index(x,      y_prev, z_next);
+        adjacents[20] = calc_index(x_next, y_prev, z_next);
+        adjacents[21] = calc_index(x_prev, y,      z_next);
+        adjacents[22] = calc_index(x,      y,      z_next);
+        adjacents[23] = calc_index(x_next, y,      z_next);
+        adjacents[24] = calc_index(x_prev, y_next, z_next);
+        adjacents[25] = calc_index(x,      y_next, z_next);
+        adjacents[26] = calc_index(x_next, y_next, z_next);
 
         return adjacents;
     }
