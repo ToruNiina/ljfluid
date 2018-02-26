@@ -4,6 +4,7 @@
 #include <cuda/particle.cuh>
 #include <cuda/boundary_condition.cuh>
 #include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/sort.h>
 #include <thrust/gather.h>
@@ -12,7 +13,6 @@ namespace lj
 {
 namespace detail
 {
-
 struct make_adjacents
 {
     const std::size_t Nx, Ny, Nz;
@@ -64,7 +64,7 @@ struct make_adjacents
 
     __host__ __device__
     std::size_t calc_index(
-            const std::size_t i, const std::size_t j, const std::size_t k) const
+        const std::size_t i, const std::size_t j, const std::size_t k) const
     {
         return k * Ny * Nx + j * Nx + i;
     }
@@ -76,9 +76,9 @@ struct grid
     __host__
     grid(const float rc, periodic_boundary b): boundary(b)
     {
-        this->Nx = std::floor(this->boundary.width.x / rc);
-        this->Ny = std::floor(this->boundary.width.y / rc);
-        this->Nz = std::floor(this->boundary.width.z / rc);
+        this->Nx = std::max(3, std::floor(this->boundary.width.x / rc));
+        this->Ny = std::max(3, std::floor(this->boundary.width.y / rc));
+        this->Nz = std::max(3, std::floor(this->boundary.width.z / rc));
 
         this->rx = Nx / boundary.width.x; // == 1.0 / grid_x_width
         this->ry = Ny / boundary.width.y;
@@ -88,9 +88,9 @@ struct grid
         this->cell.resize(Nx * Ny * Nz);
 
         thrust::transform(
-                thrust::make_counting_iterator<std::size_t>(0),
-                thrust::make_counting_iterator<std::size_t>(Nx * Ny * Nz),
-                this->adjs.begin(), detail::make_adjacents(Nx, Ny, Nz));
+            thrust::make_counting_iterator<std::size_t>(0),
+            thrust::make_counting_iterator<std::size_t>(Nx * Ny * Nz),
+            this->adjs.begin(), detail::make_adjacents(Nx, Ny, Nz));
     }
 
     __host__
@@ -111,7 +111,7 @@ struct grid
         thrust::stable_sort_by_key(cellids.begin(), cellids.end(), idxs.begin());
         // cellids = {0, 0, 1, 1, 1, 3, 3, 4, ... } // cell ids
         // idxs    = {6, 9, 2, 5, 7, 1, 4, 3, ... } // particle idx in the cell
-        // cell   -> {2, 3, 0, 2, ...} // number of particles in each cell
+        // cell   -> {2, 5, 5, 7, ...} // index
 
         //XXX avoid empty cell problem (in the above case, cell#2 has nothing)
         thrust::device_vector<std::size_t> filled_grids(cell.size());
