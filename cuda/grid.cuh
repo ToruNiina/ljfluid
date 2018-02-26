@@ -38,7 +38,7 @@ struct grid
     }
 
     __host__
-    void assign(const thrust::device_vector<particle>& ps)
+    void assign(const thrust::device_vector<float4>& ps)
     {
         cellids.resize(ps.size());
         idxs.resize(ps.size());
@@ -48,8 +48,8 @@ struct grid
                      idxs.begin()); // idxs = {0, 1, 2, 3, ..., ps.size()}
 
         thrust::transform(ps.begin(), ps.end(), cellids.begin(),
-            [this, rx, ry, rz] __device__ (const particle& p) -> std::size_t {
-                return this->calc_index(p.position);
+            [this] __device__ (const float4& p) -> std::size_t {
+                return this->calc_index(p);
             });
 
         thrust::stable_sort_by_key(cellids.begin(), cellids.end(), idxs.begin());
