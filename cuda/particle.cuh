@@ -2,6 +2,7 @@
 #define LJ_PARTICLE
 #include <cuda/vec.cuh>
 #include <thrust/host_vector.h>
+#include <thrust/device_vector.h>
 #include <vector>
 #include <iostream>
 #include <iomanip>
@@ -9,58 +10,96 @@
 namespace lj
 {
 
-struct particle
+struct particle_view
 {
-    float  mass;
-    float4 position;
-    float4 velocity;
-    float4 force;
+    float&  mass()     const noexcept {return *mass_;}
+    float4& position() const noexcept {return *position_;}
+    float4& velocity() const noexcept {return *velocity_;}
+    float4& force()    const noexcept {return *force_;}
+
+    float*  mass_;
+    float4* position_;
+    float4* velocity_;
+    float4* force_;
 };
 
-__host__
-inline std::ostream&
-operator<<(std::ostream& os, const particle& p)
+struct const_particle_view
 {
-    os << "H      " << std::fixed << std::setprecision(4) << std::showpoint
-       << std::setw(10) << std::right << p.position.x
-       << std::setw(10) << std::right << p.position.y
-       << std::setw(10) << std::right << p.position.z;
-    return os;
-}
+    float  const& mass()     const noexcept {return *mass_;}
+    float4 const& position() const noexcept {return *position_;}
+    float4 const& velocity() const noexcept {return *velocity_;}
+    float4 const& force()    const noexcept {return *force_;}
 
-__host__
-inline std::ostream&
-operator<<(std::ostream& os, const std::vector<particle>& ps)
+    float  const* mass_;
+    float4 const* position_;
+    float4 const* velocity_;
+    float4 const* force_;
+};
+
+struct particle_container
 {
-    os << ps.size() << "\n\n";
-    for(const auto& p : ps)
+    particle_container(const std::size_t N)
+        : host_masses(N),       host_positions(N),
+          host_velocities(N),   host_forces(N, make_float4(0., 0., 0., 0.)),
+          device_masses(N),     device_positions(N),
+          device_velocities(N), device_forces(N, make_float4(0., 0., 0., 0.)),
+          buf_forces(N)
+    {}
+
+    struct vec_add
     {
-        os << p << '\n';
-    }
-    return os;
-}
+        __host__ __device__
+        float4 operator()(const float4& lhs, const float4& rhs) const noexcept
+        {
+            return lj::operator+(lhs, rhs);
+        }
+    };
 
-__host__
-inline std::ostream&
-operator<<(std::ostream& os, const thrust::host_vector<particle>& ps)
-{
-    os << ps.size() << "\n\n";
-    for(const auto& p : ps)
+    void push_host_force()
     {
-        os << p << '\n';
+        thrust::copy(host_forces.begin(), host_forces.end(), buf_forces.begin());
+        thrust::transform(buf_forces.begin(), buf_forces.end(),
+            device_forces.begin(), device_forces.begin(), vec_add());
     }
-    return os;
-}
 
-template<typename Alloc>
-__host__
-inline std::ostream&
-operator<<(std::ostream& os, const thrust::device_vector<particle, Alloc>& ps)
-{
-    const thrust::host_vector<particle> tmp = ps;
-    os << tmp;
-    return os;
-}
+    void pull_device_particles()
+    {
+        thrust::copy(this->device_positions.begin(), this->device_positions.end(),
+                     this->host_positions.begin());
+        thrust::copy(this->device_velocities.begin(), this->device_velocities.end(),
+                     this->host_velocities.begin());
+        return;
+    }
+
+    __host__
+    particle_view operator[](std::size_t i) noexcept
+    {
+        return particle_view{std::addressof(host_masses[i]),
+                             std::addressof(host_positions[i]),
+                             std::addressof(host_velocities[i]),
+                             std::addressof(host_forces[i])};
+    }
+
+    __host__
+    const_particle_view operator[](std::size_t i) const noexcept
+    {
+        return const_particle_view{std::addressof(host_masses[i]),
+                                   std::addressof(host_positions[i]),
+                                   std::addressof(host_velocities[i]),
+                                   std::addressof(host_forces[i])};
+    }
+
+    thrust::host_vector<float>  host_masses;
+    thrust::host_vector<float4> host_positions;
+    thrust::host_vector<float4> host_velocities;
+    thrust::host_vector<float4> host_forces;
+
+    thrust::device_vector<float>  device_masses;
+    thrust::device_vector<float4> device_positions;
+    thrust::device_vector<float4> device_velocities;
+    thrust::device_vector<float4> device_forces;
+    thrust::device_vector<float4> buf_forces;
+};
 
 } // lj
 #endif
