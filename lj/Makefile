@@ -4,11 +4,11 @@ help: ## print this help
 
 .PHONY: build
 build: ## build the code
-	g++ -std=c++11 -O3 -ffast-math -march=native -I../ main.cpp -o main.out
+	g++ -Wall -Wextra -Wpedantic -std=c++14 -O3 -ffast-math -march=native -I../ main.cpp -o main.out
 
 .PHONY: run
 run: ## run simulation and write the result to "traj.xyz" and "energy.dat"
-	./main.out 2>&1 1>traj.xyz | tee energy.dat
+	time ./main.out 2>&1 1>traj.xyz | tee energy.dat
 
 .PHONY: clean
 clean: ## remove executable binary, "traj.xyz" and "energy.dat".
