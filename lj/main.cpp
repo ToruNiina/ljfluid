@@ -1,5 +1,6 @@
 #include <lj/particle.hpp>
 #include <lj/boundary_condition.hpp>
+#include <lj/verletlist.hpp>
 #include <iterator>
 #include <random>
 
@@ -7,23 +8,28 @@ namespace lj
 {
 constexpr static double sgm = 1.0;
 constexpr static double eps = 1.0;
+constexpr static double r_c = sgm * 2.5;
+constexpr static double inv_r_c = 1.0 / r_c;
 
 void calc_force(std::vector<particle<double>>& ps,
-                const periodic_boundary<double>& pb)
+                const periodic_boundary<double>& pb,
+                const verlet_list<double>& vl)
 {
-    for(auto iter(ps.begin()), iend(std::prev(ps.end())); iter != iend; ++iter)
+    for(std::size_t i=0; i<ps.size(); ++i)
     {
-        const auto& pos1 = iter->position;
-        for(auto jter(std::next(iter)), jend(ps.end()); jter != jend; ++jter)
+        const auto& pos1 = ps[i].position;
+        for(auto j : vl.neighbors(i))
         {
-            const auto&  pos2 = jter->position;
+            const auto&  pos2 = ps[j].position;
             const auto   dpos = pb.adjust_direction(pos2 - pos1);
             const double invr = 1. / length(dpos);
-            const double sgmr = sgm * invr;
-            const double f    = 24 * eps *
-                (std::pow(sgmr, 6) - 2 * std::pow(sgmr, 12)) * invr;
-            iter->force = iter->force + dpos * f;
-            jter->force = jter->force - dpos * f;
+            if(invr < inv_r_c) {continue;}
+
+            const double sgmr  = sgm * invr;
+            const double sr6 = std::pow(sgmr, 6);
+            const auto   f = dpos * (24 * eps * sr6 * (1.0 - 2 * sr6) * invr);
+            ps[i].force += f;
+            ps[j].force -= f;
         }
     }
     return;
@@ -38,17 +44,24 @@ double calc_kinetic_energy(const std::vector<particle<double>>& ps)
     }
     return E;
 }
-double calc_potential_energy(const std::vector<particle<double>>& ps)
+
+double calc_potential_energy(const std::vector<particle<double>>& ps,
+                             const periodic_boundary<double>& pb,
+                             const verlet_list<double>& vl)
 {
     double E = 0.0;
-    for(auto iter(ps.begin()), iend(std::prev(ps.end())); iter != iend; ++iter)
+    for(std::size_t i=0; i<ps.size(); ++i)
     {
-        const auto& pos1 = iter->position;
-        for(auto jter(std::next(iter)), jend(ps.end()); jter != jend; ++jter)
+        const auto& pos1 = ps[i].position;
+        for(auto j : vl.neighbors(i))
         {
-            const auto& pos2 = jter->position;
-            const double sgmr = sgm / length(pos2 - pos1);
-            E += 4 * eps * (std::pow(sgmr, 12) - std::pow(sgmr, 6));
+            const auto& pos2 = ps[j].position;
+            const double invr = 1.0 / length(pb.adjust_direction(pos2 - pos1));
+            if(invr < inv_r_c) {continue;}
+
+            const double sgmr = sgm * invr;
+            const double sr6 = std::pow(sgmr, 6);
+            E += 4 * eps * sr6 * (sr6 - 1.0);
         }
     }
     return E;
@@ -64,6 +77,8 @@ int main()
     const double kB  = 1.986231313e-3;
     const double T   = 300.0;
     const double dt  = 0.01;
+
+    lj::verlet_list<double> vl(dt, lj::r_c, 0.25);
 
     std::vector<lj::particle<double>> ps(512/* = 8 * 8 * 8*/);
     {
@@ -82,24 +97,31 @@ int main()
     }
 
     std::cerr << "time\tkinetic\tpotential\ttotal\n";
+    vl.make(ps, pb);
+    lj::calc_force(ps, pb, vl);
     for(std::size_t timestep=0; timestep < 10000; ++timestep)
     {
         if(timestep % 16 == 0)
         {
             const double Ek = lj::calc_kinetic_energy(ps);
-            const double Ep = lj::calc_potential_energy(ps);
+            const double Ep = lj::calc_potential_energy(ps, pb, vl);
             std::cerr << timestep * dt << '\t' << Ek << '\t' << Ep << '\t'
                       << Ek + Ep << '\n';
             std::cout << ps << std::flush;
         }
 
+        double max_vel2 = 0.0;
         for(auto& p : ps)
         {
+            max_vel2 = std::max(max_vel2, length_sq(p.velocity));
             p.position = pb.adjust_position(p.position + dt * p.velocity +
                                             (dt * dt / 2) * p.force / p.mass);
             p.velocity = p.velocity + (dt / 2) * p.force / p.mass;
         }
-        lj::calc_force(ps, pb);
+
+        vl.update(ps, pb, std::sqrt(max_vel2));
+        lj::calc_force(ps, pb, vl);
+
         for(auto& p : ps)
         {
             p.velocity = p.velocity + (dt / 2) * p.force / p.mass;
