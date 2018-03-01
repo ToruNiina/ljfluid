@@ -5,31 +5,40 @@
 namespace lj
 {
 
-template<typename T>
-vector<T> adjust_direction(vector<T> pos,
-        const vector<T>& size, const vector<T>& size_half)
+template<typename Real>
+struct periodic_boundary
 {
-         if(pos.x < -size_half.x) pos.x += size.x;
-    else if(pos.x >  size_half.x) pos.x -= size.x;
-         if(pos.y < -size_half.y) pos.y += size.y;
-    else if(pos.y >  size_half.y) pos.y -= size.y;
-         if(pos.z < -size_half.z) pos.z += size.z;
-    else if(pos.z >  size_half.z) pos.z -= size.z;
-    return pos;
-}
+    periodic_boundary(const vector<Real>& low, const vector<Real>& up) noexcept
+        : width(up - low), halfw((up - low) * 0.5), upper(up), lower(low)
+    {}
 
-template<typename T>
-vector<T> adjust_position(vector<T> pos,
-        const vector<T>& upper, const vector<T>& lower, const vector<T>& size)
-{
-         if(pos.x < lower.x) pos.x += size.x;
-    else if(pos.x > upper.x) pos.x -= size.x;
-         if(pos.y < lower.y) pos.y += size.y;
-    else if(pos.y > upper.y) pos.y -= size.y;
-         if(pos.z < lower.z) pos.z += size.z;
-    else if(pos.z > upper.z) pos.z -= size.z;
-    return pos;
-}
+    vector<Real> adjust_direction(vector<Real> pos) const noexcept
+    {
+        if     (pos.x < -halfw.x){pos.x += width.x;}
+        else if(pos.x >= halfw.x){pos.x -= width.x;}
+        if     (pos.y < -halfw.y){pos.y += width.y;}
+        else if(pos.y >= halfw.y){pos.y -= width.y;}
+        if     (pos.z < -halfw.z){pos.z += width.z;}
+        else if(pos.z >= halfw.z){pos.z -= width.z;}
+        return pos;
+    }
+
+    vector<Real> adjust_position(vector<Real> pos) const noexcept
+    {
+        if     (pos.x <  lower.x){pos.x += width.x;}
+        else if(pos.x >= upper.x){pos.x -= width.x;}
+        if     (pos.y <  lower.y){pos.y += width.y;}
+        else if(pos.y >= upper.y){pos.y -= width.y;}
+        if     (pos.z <  lower.z){pos.z += width.z;}
+        else if(pos.z >= upper.z){pos.z -= width.z;}
+        return pos;
+    }
+
+    vector<Real> width;
+    vector<Real> halfw;
+    vector<Real> upper;
+    vector<Real> lower;
+};
 
 } // lj
 #endif// LJ_BOUNDARY_CONDITION

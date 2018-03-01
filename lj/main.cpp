@@ -9,7 +9,7 @@ constexpr static double sgm = 1.0;
 constexpr static double eps = 1.0;
 
 void calc_force(std::vector<particle<double>>& ps,
-                const vector<double>& size, const vector<double>& size_half)
+                const periodic_boundary<double>& pb)
 {
     for(auto iter(ps.begin()), iend(std::prev(ps.end())); iter != iend; ++iter)
     {
@@ -17,10 +17,11 @@ void calc_force(std::vector<particle<double>>& ps,
         for(auto jter(std::next(iter)), jend(ps.end()); jter != jend; ++jter)
         {
             const auto&  pos2 = jter->position;
-            const auto   dpos = adjust_direction(pos2 - pos1, size, size_half);
+            const auto   dpos = pb.adjust_direction(pos2 - pos1);
             const double invr = 1. / length(dpos);
             const double sgmr = sgm * invr;
-            const double f    = 24 * eps * (std::pow(sgmr, 6) - 2 * std::pow(sgmr, 12)) * invr;
+            const double f    = 24 * eps *
+                (std::pow(sgmr, 6) - 2 * std::pow(sgmr, 12)) * invr;
             iter->force = iter->force + dpos * f;
             jter->force = jter->force - dpos * f;
         }
@@ -58,8 +59,8 @@ int main()
 {
     const lj::vector<double> upper{80.0, 80.0, 80.0};
     const lj::vector<double> lower{ 0.0,  0.0,  0.0};
-    const lj::vector<double> L  = upper - lower;
-    const lj::vector<double> Lh = L / 2.0;
+    const lj::periodic_boundary<double> pb(lower, upper);
+
     const double kB  = 1.986231313e-3;
     const double T   = 300.0;
     const double dt  = 0.01;
@@ -91,14 +92,14 @@ int main()
                       << Ek + Ep << '\n';
             std::cout << ps << std::flush;
         }
+
         for(auto& p : ps)
         {
-            p.position = lj::adjust_position(
-                p.position + dt * p.velocity + (dt * dt / 2) * p.force / p.mass,
-                upper, lower, L);
+            p.position = pb.adjust_position(p.position + dt * p.velocity +
+                                            (dt * dt / 2) * p.force / p.mass);
             p.velocity = p.velocity + (dt / 2) * p.force / p.mass;
         }
-        lj::calc_force(ps, L, Lh);
+        lj::calc_force(ps, pb);
         for(auto& p : ps)
         {
             p.velocity = p.velocity + (dt / 2) * p.force / p.mass;
