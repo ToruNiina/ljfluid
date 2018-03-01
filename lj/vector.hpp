@@ -12,6 +12,31 @@ struct vector
 };
 
 template<typename T>
+inline vector<T>& operator+=(vector<T>& lhs, const vector<T>& rhs) noexcept
+{
+    lhs.x += rhs.x; lhs.y += rhs.y; lhs.z += rhs.z;
+    return lhs;
+}
+template<typename T>
+inline vector<T>& operator-=(vector<T>& lhs, const vector<T>& rhs) noexcept
+{
+    lhs.x -= rhs.x; lhs.y -= rhs.y; lhs.z -= rhs.z;
+    return lhs;
+}
+template<typename T>
+inline vector<T>& operator*=(vector<T>& lhs, const T rhs) noexcept
+{
+    lhs.x *= rhs.x; lhs.y *= rhs.y; lhs.z *= rhs.z;
+    return lhs;
+}
+template<typename T>
+inline vector<T>& operator/=(vector<T>& lhs, const T rhs) noexcept
+{
+    lhs.x /= rhs.x; lhs.y /= rhs.y; lhs.z /= rhs.z;
+    return lhs;
+}
+
+template<typename T>
 inline vector<T> operator+(const vector<T>& lhs, const vector<T>& rhs) noexcept
 {
     return vector<T>{lhs.x + rhs.x, lhs.y + rhs.y, lhs.z + rhs.z};
