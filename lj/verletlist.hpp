@@ -51,7 +51,7 @@ struct verlet_list
     void update(const std::vector<particle<Real>>& ps,
                 const periodic_boundary<Real>& b, const Real max_vel)
     {
-        this->current_mergin -= max_vel * dt;
+        this->current_mergin -= 2 * max_vel * dt;
         if(this->current_mergin < 0.0)
         {
             this->make(ps, b);
