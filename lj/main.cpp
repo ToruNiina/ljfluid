@@ -18,6 +18,7 @@ void calc_force(std::vector<particle<double>>& ps,
     for(std::size_t i=0; i<ps.size(); ++i)
     {
         const auto& pos1 = ps[i].position;
+//         for(std::size_t j=i+1; j<ps.size(); ++j)
         for(auto j : vl.neighbors(i))
         {
             const auto&  pos2 = ps[j].position;
@@ -53,6 +54,7 @@ double calc_potential_energy(const std::vector<particle<double>>& ps,
     for(std::size_t i=0; i<ps.size(); ++i)
     {
         const auto& pos1 = ps[i].position;
+//         for(std::size_t j=i+1; j<ps.size(); ++j)
         for(auto j : vl.neighbors(i))
         {
             const auto& pos2 = ps[j].position;
