@@ -72,8 +72,11 @@ double calc_potential_energy(const std::vector<particle<double>>& ps,
 
 int main()
 {
-    const lj::vector<double> upper{80.0, 80.0, 80.0};
-    const lj::vector<double> lower{ 0.0,  0.0,  0.0};
+    const std::size_t log2N = 4;
+
+    const std::size_t N = std::pow(2, log2N);
+    const lj::vector<double> upper{N*2.0, N*2.0, N*2.0};
+    const lj::vector<double> lower{  0.0,   0.0,   0.0};
     const lj::periodic_boundary<double> pb(lower, upper);
 
     const double kB  = 1.986231313e-3;
@@ -82,17 +85,17 @@ int main()
 
     lj::verlet_list<double> vl(dt, lj::r_c, 0.25);
 
-    std::vector<lj::particle<double>> ps(512/* = 8 * 8 * 8*/);
+    std::vector<lj::particle<double>> ps(N * N * N);
     {
         std::mt19937 mt(123456789);
         std::normal_distribution<double> boltz(0.0, std::sqrt(kB * T));
-        for(std::size_t i=0; i<512; ++i)
+        for(std::size_t i=0; i<ps.size(); ++i)
         {
             ps[i].mass = 1.0;
             ps[i].position = lj::vector<double>{
-               5.0 + 10.0 * ((i & 0b000000111) >> 0),
-               5.0 + 10.0 * ((i & 0b000111000) >> 3),
-               5.0 + 10.0 * ((i & 0b111000000) >> 6)};
+               1.0 + 2.0 * ((i & (N-1) << log2N * 0) >> log2N * 0),
+               1.0 + 2.0 * ((i & (N-1) << log2N * 1) >> log2N * 1),
+               1.0 + 2.0 * ((i & (N-1) << log2N * 2) >> log2N * 2)};
             ps[i].velocity = lj::vector<double>{boltz(mt), boltz(mt), boltz(mt)};
             ps[i].force    = lj::vector<double>{0.0, 0.0, 0.0};
         }
