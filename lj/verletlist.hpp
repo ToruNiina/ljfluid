@@ -38,17 +38,18 @@ struct verlet_list
                 }
             }
             partners[i] = {first, last};
+            std::sort(this->indices.begin() + first, this->indices.begin() + last);
         }
         return;
     }
     void update(const std::vector<particle<Real>>& ps,
                 const periodic_boundary<Real>& b, const Real max_vel)
     {
-        this->current_mergin -= 2 * max_vel * dt;
         if(this->current_mergin < 0.0)
         {
             this->make(ps, b);
         }
+        this->current_mergin -= 2 * max_vel * dt;
         return;
     }
 
