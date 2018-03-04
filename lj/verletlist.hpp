@@ -2,20 +2,13 @@
 #define LJ_VERLET_LIST_HPP
 #include <lj/particle.hpp>
 #include <lj/boundary_condition.hpp>
+#include <lj/range.hpp>
 
 namespace lj
 {
 template<typename Real>
 struct verlet_list
 {
-    struct range
-    {
-        using iterator = std::vector<std::size_t>::const_iterator;
-        const iterator first, last;
-        iterator begin() const noexcept {return first;}
-        iterator end()   const noexcept {return last;}
-    };
-
     verlet_list(const Real dt, const Real rc, const Real mgn)
         : dt(dt), cutoff(rc), mergin(mgn), current_mergin(-1.0)
     {}
@@ -27,7 +20,7 @@ struct verlet_list
         partners.clear();
         partners.resize(ps.size());
 
-        const Real ignore_distance = cutoff * (1.0 + mergin);
+        const Real threshold2 = std::pow(cutoff * (1.0 + mergin), 2);
         this->current_mergin = cutoff * mergin;
 
         std::size_t last = 0;
@@ -36,9 +29,9 @@ struct verlet_list
             const std::size_t first = last;
             for(std::size_t j=i+1; j < ps.size(); ++j)
             {
-                const Real dist =
-                    length(b.adjust_direction(ps[i].position - ps[j].position));
-                if(dist < ignore_distance)
+                const Real dist2 = length_sq(
+                        b.adjust_direction(ps[i].position - ps[j].position));
+                if(dist2 < threshold2)
                 {
                     indices.push_back(j);
                     ++last;
@@ -59,10 +52,11 @@ struct verlet_list
         return;
     }
 
-    range neighbors(const std::size_t i) const noexcept
+    range<typename std::vector<std::size_t>::const_iterator>
+    neighbors(const std::size_t i) const noexcept
     {
-        return range{indices.begin() + partners[i].first,
-                     indices.begin() + partners[i].second};
+        return make_range(indices.cbegin() + partners[i].first,
+                          indices.cbegin() + partners[i].second);
     }
 
     const Real dt;
