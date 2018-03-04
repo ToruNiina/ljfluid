@@ -1,6 +1,7 @@
 #include <lj/particle.hpp>
 #include <lj/boundary_condition.hpp>
-#include <lj/verletlist.hpp>
+// #include <lj/verletlist.hpp>
+#include <lj/cell_list.hpp>
 #include <iterator>
 #include <random>
 
@@ -13,13 +14,14 @@ constexpr static double inv_r_c = 1.0 / r_c;
 
 void calc_force(std::vector<particle<double>>& ps,
                 const periodic_boundary<double>& pb,
-                const verlet_list<double>& vl)
+                const cell_list<double>& ls)
+//                 const verlet_list<double>& ls)
 {
     for(std::size_t i=0; i<ps.size(); ++i)
     {
         const auto& pos1 = ps[i].position;
 //         for(std::size_t j=i+1; j<ps.size(); ++j)
-        for(auto j : vl.neighbors(i))
+        for(auto j : ls.neighbors(i))
         {
             const auto&  pos2 = ps[j].position;
             const auto   dpos = pb.adjust_direction(pos2 - pos1);
@@ -48,14 +50,15 @@ double calc_kinetic_energy(const std::vector<particle<double>>& ps)
 
 double calc_potential_energy(const std::vector<particle<double>>& ps,
                              const periodic_boundary<double>& pb,
-                             const verlet_list<double>& vl)
+                             const cell_list<double>& ls)
+//                              const verlet_list<double>& ls)
 {
     double E = 0.0;
     for(std::size_t i=0; i<ps.size(); ++i)
     {
         const auto& pos1 = ps[i].position;
 //         for(std::size_t j=i+1; j<ps.size(); ++j)
-        for(auto j : vl.neighbors(i))
+        for(auto j : ls.neighbors(i))
         {
             const auto& pos2 = ps[j].position;
             const double invr = 1.0 / length(pb.adjust_direction(pos2 - pos1));
@@ -83,7 +86,8 @@ int main()
     const double T   = 300.0;
     const double dt  = 0.01;
 
-    lj::verlet_list<double> vl(dt, lj::r_c, 0.25);
+//     lj::verlet_list<double> ls(dt, lj::r_c, 0.25);
+    lj::cell_list<double> ls(dt, lj::r_c, 0.25, pb);
 
     std::vector<lj::particle<double>> ps(N * N * N);
     {
@@ -102,14 +106,14 @@ int main()
     }
 
     std::cerr << "time\tkinetic\tpotential\ttotal\n";
-    vl.make(ps, pb);
-    lj::calc_force(ps, pb, vl);
+    ls.make(ps, pb);
+    lj::calc_force(ps, pb, ls);
     for(std::size_t timestep=0; timestep < 10000; ++timestep)
     {
         if(timestep % 16 == 0)
         {
             const double Ek = lj::calc_kinetic_energy(ps);
-            const double Ep = lj::calc_potential_energy(ps, pb, vl);
+            const double Ep = lj::calc_potential_energy(ps, pb, ls);
             std::cerr << timestep * dt << '\t' << Ek << '\t' << Ep << '\t'
                       << Ek + Ep << '\n';
             std::cout << ps << std::flush;
@@ -124,8 +128,8 @@ int main()
             p.velocity = p.velocity + (dt / 2) * p.force / p.mass;
         }
 
-        vl.update(ps, pb, std::sqrt(max_vel2));
-        lj::calc_force(ps, pb, vl);
+        ls.update(ps, pb, std::sqrt(max_vel2));
+        lj::calc_force(ps, pb, ls);
 
         for(auto& p : ps)
         {
