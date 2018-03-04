@@ -7,7 +7,7 @@ namespace lj
 template<typename Iterator>
 struct range
 {
-    const Iterator first, last;
+    Iterator first, last;
     Iterator begin() const noexcept {return first;}
     Iterator end()   const noexcept {return last;}
 };
