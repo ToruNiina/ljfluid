@@ -4,7 +4,9 @@
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 #include <thrust/transform_reduce.h>
+#include <thrust/inner_product.h>
 #include <thrust/functional.h>
+#include <thrust/for_each.h>
 #include <curand.h>
 #include <iterator>
 #include <iostream>
@@ -18,23 +20,21 @@ __device__ __host__ constexpr float sgm() noexcept {return 1.0f;}
 __device__ __host__ constexpr float eps() noexcept {return 1.0f;}
 
 struct kinetic_energy_calculator
+    : thrust::binary_function<float, float4, float>
 {
     __device__ __host__
-    float operator()(const thrust::tuple<float, float4>& t) const noexcept
+    float operator()(float m, float4 v) const noexcept
     {
-        return thrust::get<0>(t) * length_sq(thrust::get<1>(t));
+        return m * length_sq(v);
     };
 };
 
 float kinetic_energy(const particle_container& ps)
 {
-    return thrust::transform_reduce(
-        thrust::make_zip_iterator(thrust::make_tuple(
-            ps.device_masses.cbegin(), ps.device_velocities.cbegin())),
-        thrust::make_zip_iterator(thrust::make_tuple(
-            ps.device_masses.cend(), ps.device_velocities.cend())),
-        kinetic_energy_calculator(), 0.0, thrust::plus<float>()
-        ) * 0.5;
+    return thrust::inner_product(
+            ps.device_masses.cbegin(),      ps.device_masses.cend(),
+            ps.device_velocities.cbegin(), 0.0, thrust::plus<float>(),
+            kinetic_energy_calculator()) * 0.5;
 }
 
 struct velocity_verlet_update_1
@@ -43,17 +43,18 @@ struct velocity_verlet_update_1
         : dt(dt_), dt_half(dt_ * 0.5), b(b_)
     {}
 
+    template<typename Tuple>
     __device__ __host__
-    thrust::tuple<float4, float4>
-    operator()(const thrust::tuple<float, float4, float4, float4>& mpvf) const noexcept
+    void operator()(Tuple mpvf) const noexcept
     {
-        const float4 p_next = adjust_position(
+        thrust::get<1>(mpvf) = adjust_position(
                 thrust::get<1>(mpvf) + dt * thrust::get<2>(mpvf) +
-                (dt * dt_half / thrust::get<0>(mpvf)) * thrust::get<3>(mpvf), b);
+                (dt * dt_half / thrust::get<0>(mpvf)) * thrust::get<3>(mpvf),
+                b);
 
-        const float4 v_next = thrust::get<2>(mpvf) +
+        thrust::get<2>(mpvf) = thrust::get<2>(mpvf) +
                 (dt_half / thrust::get<0>(mpvf)) * thrust::get<3>(mpvf);
-        return thrust::make_tuple(p_next, v_next);
+        return;
     }
 
     const float dt;
@@ -67,13 +68,14 @@ struct velocity_verlet_update_2
         : dt(dt_), dt_half(dt_ * 0.5)
     {}
 
+    template<typename Tuple>
     __device__ __host__
-    thrust::tuple<float4, float4>
-    operator()(const thrust::tuple<float, float4, float4, float4>& mpvf) const noexcept
+    void operator()(Tuple mvf) const noexcept
     {
-        const float4 v_next = thrust::get<2>(mpvf) +
-                (dt_half / thrust::get<0>(mpvf)) * thrust::get<3>(mpvf);
-        return thrust::make_tuple(v_next, make_float4(0., 0., 0., 0.));
+        thrust::get<1>(mvf) = thrust::get<1>(mvf) +
+                (dt_half / thrust::get<0>(mvf)) * thrust::get<2>(mvf);
+        thrust::get<2>(mvf) = make_float4(0,0,0,0);
+        return;
     }
 
     const float dt;
@@ -110,7 +112,7 @@ int main()
     const float4 lower    = make_float4( 0.0,  0.0,  0.0, 0.0);
     const auto   boundary = lj::make_boundary(lower, upper);
 
-    const std::size_t step = 1000;
+    const std::size_t step = 100000;
     const std::size_t N    = std::pow(16, 3);
     const std::size_t seed = 123456789;
     const float kB  = 1.986231313e-3;
@@ -185,7 +187,7 @@ int main()
               << ", 3/2 NkBT = " << N * kB * T * 1.5 << std::endl;
 
     //TODO: add potential
-    lj::grid grid(lj::sgm() * 3, boundary);
+    /* lj::grid grid(lj::sgm() * 3, boundary); */
 
 //     std::cerr << grid.Nx << std::endl;
 //     std::cerr << grid.Ny << std::endl;
@@ -208,31 +210,10 @@ int main()
     const lj::velocity_verlet_update_2 update2(dt);
     for(std::size_t s=0; s < step; ++s)
     {
-        thrust::transform(thrust::make_zip_iterator(thrust::make_tuple(
-                ps.device_masses.begin(), ps.device_positions.begin(),
-                ps.device_velocities.begin(), ps.device_forces.begin())),
-            thrust::make_zip_iterator(thrust::make_tuple(
-                ps.device_masses.end(), ps.device_positions.end(),
-                ps.device_velocities.end(), ps.device_forces.end())),
-            thrust::make_zip_iterator(thrust::make_tuple(
-                ps.device_positions.begin(), ps.device_velocities.begin())),
-            update1);
-
-        // calc force here
-
-        thrust::transform(thrust::make_zip_iterator(thrust::make_tuple(
-                ps.device_masses.begin(), ps.device_positions.begin(),
-                ps.device_velocities.begin(), ps.device_forces.begin())),
-            thrust::make_zip_iterator(thrust::make_tuple(
-                ps.device_masses.end(), ps.device_positions.end(),
-                ps.device_velocities.end(), ps.device_forces.end())),
-            thrust::make_zip_iterator(thrust::make_tuple(
-                ps.device_velocities.begin(), ps.device_forces.begin())),
-            update2);
-
-        ps.pull_device_particles();
-
+        if(s % 1000 == 0)
         {
+            ps.pull_device_particles();
+
             std::ofstream traj("traj.xyz",
                     std::ios_base::app | std::ios_base::out);
 
@@ -247,6 +228,24 @@ int main()
                      << std::setw(10) << std::right << v.z << '\n';
             }
         }
+
+        thrust::for_each(thrust::make_zip_iterator(thrust::make_tuple(
+                ps.device_masses.begin(), ps.device_positions.begin(),
+                ps.device_velocities.begin(), ps.device_forces.begin())),
+            thrust::make_zip_iterator(thrust::make_tuple(
+                ps.device_masses.end(), ps.device_positions.end(),
+                ps.device_velocities.end(), ps.device_forces.end())),
+            update1);
+
+        // calc force here
+
+        thrust::for_each(thrust::make_zip_iterator(thrust::make_tuple(
+                ps.device_masses.begin(),
+                ps.device_velocities.begin(), ps.device_forces.begin())),
+            thrust::make_zip_iterator(thrust::make_tuple(
+                ps.device_masses.end(),
+                ps.device_velocities.end(), ps.device_forces.end())),
+            update2);
     }
 
     return 0;
