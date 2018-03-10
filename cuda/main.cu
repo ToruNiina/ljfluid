@@ -99,21 +99,21 @@ struct position_initializer
     __device__ __host__
     float4 operator()(std::size_t i) const noexcept
     {
-        return make_float4(1.0 + 2.0 * ((i & 0b000000001111) >> 0),
-                           1.0 + 2.0 * ((i & 0b000011110000) >> 4),
-                           1.0 + 2.0 * ((i & 0b111100000000) >> 8),
+        return make_float4(1.0 + 2.0 * ((i & 0b000011) >> 0),
+                           1.0 + 2.0 * ((i & 0b001100) >> 2),
+                           1.0 + 2.0 * ((i & 0b110000) >> 4),
                            0.0);
     };
 };
 
 int main()
 {
-    const float4 upper    = make_float4(32.0, 32.0, 32.0, 0.0);
+    const float4 upper    = make_float4( 8.0,  8.0,  8.0, 0.0);
     const float4 lower    = make_float4( 0.0,  0.0,  0.0, 0.0);
     const auto   boundary = lj::make_boundary(lower, upper);
 
     const std::size_t step = 100000;
-    const std::size_t N    = std::pow(16, 3);
+    const std::size_t N    = std::pow(4, 3);
     const std::size_t seed = 123456789;
     const float kB  = 1.986231313e-3;
     const float T   = 300.0;
@@ -187,11 +187,22 @@ int main()
               << ", 3/2 NkBT = " << N * kB * T * 1.5 << std::endl;
 
     //TODO: add potential
-    /* lj::grid grid(lj::sgm() * 3, boundary); */
+    lj::grid grid(lj::sgm() * 3, boundary);
+    std::cerr << grid.Nx << std::endl;
+    std::cerr << grid.Ny << std::endl;
+    std::cerr << grid.Nz << std::endl;
 
-//     std::cerr << grid.Nx << std::endl;
-//     std::cerr << grid.Ny << std::endl;
-//     std::cerr << grid.Nz << std::endl;
+    grid.assign(ps.device_positions);
+
+    std::cerr << "assigned" << std::endl;
+
+    for(std::size_t i=0; i<grid.cell.size()-1; ++i)
+    {
+        const auto rg = grid.get_range(i);
+        std::cerr << '{' << rg.first << ", " << rg.second << "}, ";
+    }
+    std::cerr << std::endl;
+
 //
 //     std::size_t idx = 0;
 //     thrust::host_vector<lj::array<std::size_t, 27>> adjs = grid.adjs;
@@ -205,7 +216,7 @@ int main()
 //         std::cerr << "\n\n";
 //         ++idx;
 //     }
-
+/*
     const lj::velocity_verlet_update_1 update1(dt, boundary);
     const lj::velocity_verlet_update_2 update2(dt);
     for(std::size_t s=0; s < step; ++s)
@@ -246,7 +257,7 @@ int main()
                 ps.device_masses.end(),
                 ps.device_velocities.end(), ps.device_forces.end())),
             update2);
-    }
+    } */
 
     return 0;
 }
