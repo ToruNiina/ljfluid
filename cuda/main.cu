@@ -18,6 +18,8 @@ namespace lj
 {
 __device__ __host__ constexpr float sgm() noexcept {return 1.0f;}
 __device__ __host__ constexpr float eps() noexcept {return 1.0f;}
+__device__ __host__ constexpr float cutoff() noexcept {return 2.5f;}
+__device__ __host__ constexpr float mergin() noexcept {return 0.1f;}
 
 struct kinetic_energy_calculator
     : thrust::binary_function<float, float4, float>
@@ -187,36 +189,28 @@ int main()
               << ", 3/2 NkBT = " << N * kB * T * 1.5 << std::endl;
 
     //TODO: add potential
-    lj::grid grid(lj::sgm() * 3, boundary);
-    std::cerr << grid.Nx << std::endl;
-    std::cerr << grid.Ny << std::endl;
-    std::cerr << grid.Nz << std::endl;
+    lj::grid grid(lj::sgm() * lj::cutoff(), lj::mergin(), boundary);
+//     std::cerr << grid.Nx << std::endl;
+//     std::cerr << grid.Ny << std::endl;
+//     std::cerr << grid.Nz << std::endl;
 
     grid.assign(ps.device_positions);
 
     std::cerr << "assigned" << std::endl;
 
-    for(std::size_t i=0; i<grid.cell.size()-1; ++i)
+    for(std::size_t i=0; i<ps.device_positions.size(); ++i)
     {
-        const auto rg = grid.get_range(i);
-        std::cerr << '{' << rg.first << ", " << rg.second << "}, ";
+        const std::size_t offset = i * grid.stride;
+        std::cerr << "num_neighbors = " << grid.number_of_neighbors[i] << std::endl;
+        std::cerr << '{';
+        for(std::size_t n=0; n<grid.stride; ++n)
+        {
+            std::cerr << grid.verlet_list[n + offset] << ", ";
+        }
+        std::cerr << "}\n";
     }
     std::cerr << std::endl;
 
-//
-//     std::size_t idx = 0;
-//     thrust::host_vector<lj::array<std::size_t, 27>> adjs = grid.adjs;
-//     for(auto iter = adjs.begin(), iend = adjs.end(); iter != iend; ++iter)
-//     {
-//         std::cerr << idx << '\n';
-//         for(std::size_t i=0; i<27; ++i)
-//         {
-//             std::cerr << (*iter)[i] << ',';
-//         }
-//         std::cerr << "\n\n";
-//         ++idx;
-//     }
-/*
     const lj::velocity_verlet_update_1 update1(dt, boundary);
     const lj::velocity_verlet_update_2 update2(dt);
     for(std::size_t s=0; s < step; ++s)
@@ -257,7 +251,7 @@ int main()
                 ps.device_masses.end(),
                 ps.device_velocities.end(), ps.device_forces.end())),
             update2);
-    } */
+    }
 
     return 0;
 }
