@@ -111,7 +111,6 @@ struct grid
         const std::size_t Nx, Ny, Nz;
     };
 
-
     struct verlet_list_generator
     {
         __host__
@@ -147,6 +146,7 @@ struct grid
                 {
                     // index of possible partner
                     const std::size_t pidx = *(indices + pi);
+                    if(pidx == i) {continue;}
                     const float4 pos2 = *(positions + pidx);
                     const float dist2 = length_sq(
                             adjust_direction(pos1 - pos2, boundary));
@@ -263,6 +263,7 @@ struct grid
         verlet_list.resize(ps.size() * stride);
         thrust::fill(verlet_list.begin(), verlet_list.end(), 0);
 
+        // generate verlet list using grid
         thrust::for_each(
             thrust::counting_iterator<std::size_t>(0),
             thrust::counting_iterator<std::size_t>(ps.size()),
@@ -271,9 +272,8 @@ struct grid
                 ps.data().get(), adjs.data().get(), idxs.data().get(),
                 cell.data().get(),
                 index_calculator(rx, ry, rz, Nx, Ny, Nz, boundary.lower),
-                boundary
-            ));
-
+                boundary)
+            );
         return;
     }
 
