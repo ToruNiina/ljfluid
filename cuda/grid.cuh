@@ -10,6 +10,7 @@
 #include <thrust/sort.h>
 #include <thrust/reduce.h>
 #include <thrust/gather.h>
+#include <thrust/extrema.h>
 #include <thrust/iterator/constant_iterator.h>
 
 namespace lj
@@ -81,6 +82,7 @@ struct make_adjacents
         return k * Ny * Nx + j * Nx + i;
     }
 };
+
 } // detail
 
 struct grid
@@ -89,39 +91,106 @@ struct grid
     {
         __host__
         index_calculator(const float rx_, const float ry_, const float rz_,
-             const std::size_t Nx_, const std::size_t Ny_, const std::size_t Nz_)
-            : rx(rx_), ry(ry_), rz(rz_), Nx(Nx_), Ny(Ny_), Nz(Nz_)
+             const std::size_t Nx_, const std::size_t Ny_, const std::size_t Nz_,
+             const float4 low) noexcept
+            : rx(rx_), ry(ry_), rz(rz_), Nx(Nx_), Ny(Ny_), Nz(Nz_),
+              low_x(low.x), low_y(low.y), low_z(low.z)
         {}
 
         __host__ __device__
         std::size_t operator()(float4 pos) const noexcept
         {
-            const std::size_t i = floorf(pos.x * rx);
-            const std::size_t j = floorf(pos.y * ry);
-            const std::size_t k = floorf(pos.z * rz);
+            const std::size_t i = floorf((pos.x - low_x) * rx);
+            const std::size_t j = floorf((pos.y - low_y) * ry);
+            const std::size_t k = floorf((pos.z - low_z) * rz);
             return k * Ny * Nx + j * Nx + i;
         }
+
         const float       rx, ry, rz;
+        const float       low_x, low_y, low_z;
         const std::size_t Nx, Ny, Nz;
     };
 
-    __host__
-    grid(const float rc, periodic_boundary b): boundary(b)
-    {
-        this->Nx = std::max<std::size_t>(3, std::floor(this->boundary.width.x / rc));
-        this->Ny = std::max<std::size_t>(3, std::floor(this->boundary.width.y / rc));
-        this->Nz = std::max<std::size_t>(3, std::floor(this->boundary.width.z / rc));
-        std::cerr << this->Nx << ", " << this->Ny << ", " << this->Nz << std::endl;
 
-        this->rx = Nx / boundary.width.x; // == 1.0 / grid_x_width
-        this->ry = Ny / boundary.width.y;
-        this->rz = Nz / boundary.width.z;
-        std::cerr << this->rx << ", " << this->ry << ", " << this->rz << std::endl;
+    struct verlet_list_generator
+    {
+        __host__
+        verlet_list_generator(
+                const float threshold_, const std::size_t stride_,
+                std::size_t* const vlist, std::size_t* const n_neigh,
+                const float4* const ps, const array<std::size_t, 27>* const adjs_,
+                const std::size_t* const idxs_, const std::size_t* const clist_,
+                index_calculator calc_idx, periodic_boundary bdry)
+            : threshold2(threshold_ * threshold_), stride(stride_),
+              verlet_list(vlist), num_neighbor(n_neigh), positions(ps),
+              adjs(adjs_), indices(idxs_), cell_list(clist_),
+              calc_index(calc_idx),  boundary(bdry)
+        {}
+
+        __host__ __device__
+        void operator()(const std::size_t i) const
+        {
+            std::size_t* ptr_vlist = verlet_list + i * stride;
+            const float4      pos1 = *(positions + i);
+            const std::size_t cidx = calc_index(pos1);
+            const array<std::size_t, 27>& adjacents = *(adjs + cidx);
+
+            std::size_t n_neigh = 0;
+            for(std::size_t i=0; i<27; ++i)
+            {
+                // index of adjacent cell
+                const std::size_t cell_idx = adjacents[i];
+                const std::size_t first = *(cell_list + cell_idx);
+                const std::size_t last  = *(cell_list + cell_idx + 1);
+
+                for(std::size_t pi = first; pi < last; ++pi)
+                {
+                    // index of possible partner
+                    const std::size_t pidx = *(indices + pi);
+                    const float4 pos2 = *(positions + pidx);
+                    const float dist2 = length_sq(
+                            adjust_direction(pos1 - pos2, boundary));
+                    if(dist2 < threshold2)
+                    {
+                        *ptr_vlist = pidx;
+                        ++ptr_vlist;
+                        ++n_neigh;
+                    }
+                }
+            }
+            *(num_neighbor + i) = n_neigh;
+            assert(n_neigh < stride);
+            return ;
+        }
+
+        const float      threshold2;
+        const std::size_t   stride;
+        std::size_t*  const verlet_list;
+        std::size_t*  const num_neighbor;
+        const float4* const positions;
+        const array<std::size_t, 27>* const adjs;
+        const std::size_t* const indices;
+        const std::size_t* const cell_list;
+        const index_calculator   calc_index;
+        const periodic_boundary boundary;
+    };
+
+    __host__
+    grid(const float rc_, const float mergin_, const periodic_boundary b)
+        : rc(rc_), mergin(mergin), boundary(b)
+    {
+        this->Nx = std::max<std::size_t>(3, std::floor(b.width.x / rc));
+        this->Ny = std::max<std::size_t>(3, std::floor(b.width.y / rc));
+        this->Nz = std::max<std::size_t>(3, std::floor(b.width.z / rc));
+
+        this->rx = Nx / b.width.x; // == 1.0 / grid_x_width (reciprocal grid x)
+        this->ry = Ny / b.width.y;
+        this->rz = Nz / b.width.z;
 
         this->adjs.resize(Nx * Ny * Nz);
         this->cell.resize(Nx * Ny * Nz + 1);
 
-        this->cellids_of_bins.resize(Nx * Ny * Nz);
+        this->cellid_of_bins.resize(Nx * Ny * Nz);
         this->tmp_number_of_particles.resize(Nx * Ny * Nz);
         this->number_of_particles_in_cell.resize(Nx * Ny * Nz);
 
@@ -134,120 +203,97 @@ struct grid
     __host__
     void assign(const thrust::device_vector<float4>& ps)
     {
-        cellids_of_particles.resize(ps.size());
-        idxs.resize(ps.size());
+        number_of_neighbors.resize(ps.size());
+        cellid_of_particles.resize(ps.size());
 
-        // initialize indices
+        idxs.resize(ps.size());
         thrust::copy(thrust::make_counting_iterator<std::size_t>(0),
                      thrust::make_counting_iterator<std::size_t>(idxs.size()),
-                     idxs.begin()); // idxs = {0, 1, 2, 3, ..., ps.size()-1}
-
-        {
-            const thrust::host_vector<std::size_t> hv = idxs;
-            for(const auto h : hv)
-                std::cerr << h << ' ';
-            std::cerr << std::endl;
-        }
-        std::cerr << "index initialized" << std::endl;
+                     idxs.begin());
 
         // calculate cell id for each particle
-        thrust::transform(ps.begin(), ps.end(), cellids_of_particles.begin(),
-            index_calculator(rx, ry, rz, Nx, Ny, Nz));
-        {
-            const thrust::host_vector<float4> p = ps;
-            const thrust::host_vector<std::size_t> hv = cellids_of_particles;
-            for(std::size_t i=0; i<p.size();++i)
-            {
-                std::cerr << "{" << p[i].x << ", " << p[i].y << ", " << p[i].z << "}, " << hv[i] << ' ';
-            }
-            std::cerr << std::endl;
-        }
-
-        std::cerr << "cell index calculated" << std::endl;
+        thrust::transform(ps.begin(), ps.end(), cellid_of_particles.begin(),
+            index_calculator(rx, ry, rz, Nx, Ny, Nz, boundary.lower));
 
         // sort particle indices by its cell id
         // ptcl id = {0, 1, 2, 3, ...  N} // particle idx
         // cell id = {1, 3, 5, 2, ... 10} // belonging cell idx
-        //  |
         //  v
         // ptcl id = {0, 4, 6, 3, 5, 1, 7, 8, 9, 10, 12, ...}
         // cell id = {1, 1, 1, 2, 2, 3, 3, 3, 3,  5,  5, ...}
-        thrust::stable_sort_by_key(cellids_of_particles.begin(),
-                                   cellids_of_particles.end(), idxs.begin());
-
-        std::cerr << "particle indices are sorted" << std::endl;
-        {
-            const thrust::host_vector<std::size_t> hv = cellids_of_particles;
-            for(const auto h : hv)
-                std::cerr << h << ' ';
-            std::cerr << std::endl;
-        }
-        {
-            const thrust::host_vector<std::size_t> hv = idxs;
-            for(const auto h : hv)
-                std::cerr << h << ' ';
-            std::cerr << std::endl;
-        }
+        thrust::stable_sort_by_key(cellid_of_particles.begin(),
+                                   cellid_of_particles.end(), idxs.begin());
 
         // calculate number of particles in each cell
         // ptcl id = {0, 4, 6, 3, 5, 1, 7, 8, 9, 10, 12, ...}
         // cell id = {1, 1, 1, 2, 2, 3, 3, 3, 3,  5,  5, ...}
-        //  |
         //  v
         // cid of bin    = {1, 2, 3, 5, ...}
         // num p in bin  = {3, 2, 4, 2, ...}
-       const auto cidend_npend = thrust::reduce_by_key(
-                cellids_of_particles.begin(), cellids_of_particles.end(),
+       const auto cellid_of_bins_end = thrust::reduce_by_key(
+                cellid_of_particles.begin(), cellid_of_particles.end(),
                 thrust::constant_iterator<std::size_t>(1),
-                cellids_of_bins.begin(),
+                cellid_of_bins.begin(),
                 tmp_number_of_particles.begin(),
-                thrust::equal_to<std::size_t>());
-
-        std::cerr << "count number of particles" << std::endl;
+                thrust::equal_to<std::size_t>()).first;
 
         // avoid empty cell problem
-        // cid of bin    = {1, 2, 3, 5, ...}
+        // cid of bin    = {1, 2, 3, 5, ...} // grid #4 is empty!
         // num p in bin  = {3, 2, 4, 2, ...}
-        //  |
         //  v
         // cid of bin    = {1, 2, 3, 4, 5, ...}
         // num p in bin  = {3, 2, 4, 0, 2, ...}
         thrust::fill(number_of_particles_in_cell.begin(),
                      number_of_particles_in_cell.end(), 0);
-        thrust::gather(cellids_of_bins.begin(),
-                       cellids_of_bins.end(),
+        thrust::gather(cellid_of_bins.begin(),
+                       cellid_of_bins_end,
                        tmp_number_of_particles.begin(),
                        number_of_particles_in_cell.begin());
-
-        std::cerr << "gather number of particles for cells" << std::endl;
 
         thrust::inclusive_scan(number_of_particles_in_cell.begin(),
                                number_of_particles_in_cell.end(),
                                cell.begin() + 1);
 
-         std::cerr << "indices are scanned" << std::endl;
+        // align verlet list
+        const std::size_t maxN = *thrust::max_element(
+                number_of_particles_in_cell.begin(),
+                number_of_particles_in_cell.end());
+        this->stride = (maxN / 32 + 1) * 32;
+
+        verlet_list.resize(ps.size() * stride);
+        thrust::fill(verlet_list.begin(), verlet_list.end(), 0);
+
+        thrust::for_each(
+            thrust::counting_iterator<std::size_t>(0),
+            thrust::counting_iterator<std::size_t>(ps.size()),
+            verlet_list_generator(rc * (1.0f + mergin), stride,
+                verlet_list.data().get(), number_of_neighbors.data().get(),
+                ps.data().get(), adjs.data().get(), idxs.data().get(),
+                cell.data().get(),
+                index_calculator(rx, ry, rz, Nx, Ny, Nz, boundary.lower),
+                boundary
+            ));
+
         return;
     }
 
-    __host__
-    std::pair<std::size_t, std::size_t> get_range(std::size_t i) const noexcept
-    {
-        return std::make_pair(cell[i], cell[i+1]);
-    }
-
-    float       rc;
+    float       rc, mergin;
     float       rx, ry, rz;
     std::size_t Nx, Ny, Nz;
+    std::size_t stride;
     periodic_boundary boundary;
     thrust::device_vector<array<std::size_t, 27>> adjs;
 
-    thrust::device_vector<std::size_t> cellids_of_particles;
-    thrust::device_vector<std::size_t> cellids_of_bins;
+    thrust::device_vector<std::size_t> cellid_of_particles;
+    thrust::device_vector<std::size_t> cellid_of_bins;
     thrust::device_vector<std::size_t> tmp_number_of_particles;
     thrust::device_vector<std::size_t> number_of_particles_in_cell;
 
-    thrust::device_vector<std::size_t> idxs; // list of indices sorted by cell id
-    thrust::device_vector<std::size_t> cell; // beginning index of idxs for each cell
+    thrust::device_vector<std::size_t> idxs;
+    thrust::device_vector<std::size_t> cell;
+
+    thrust::device_vector<std::size_t> number_of_neighbors;
+    thrust::device_vector<std::size_t> verlet_list;
 };
 
 } // lj
