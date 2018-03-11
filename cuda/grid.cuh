@@ -135,10 +135,10 @@ struct grid
             const array<std::size_t, 27>& adjacents = *(adjs + cidx);
 
             std::size_t n_neigh = 0;
-            for(std::size_t i=0; i<27; ++i)
+            for(std::size_t i_neigh=0; i_neigh<27; ++i_neigh)
             {
                 // index of adjacent cell
-                const std::size_t cell_idx = adjacents[i];
+                const std::size_t cell_idx = adjacents[i_neigh];
                 const std::size_t first = *(cell_list + cell_idx);
                 const std::size_t last  = *(cell_list + cell_idx + 1);
 
@@ -258,10 +258,11 @@ struct grid
         const std::size_t maxN = *thrust::max_element(
                 number_of_particles_in_cell.begin(),
                 number_of_particles_in_cell.end());
-        this->stride = (maxN / 32 + 1) * 32;
+        this->stride = (maxN / 16 + 1) * 16;
 
         verlet_list.resize(ps.size() * stride);
-        thrust::fill(verlet_list.begin(), verlet_list.end(), 0);
+        thrust::fill(verlet_list.begin(), verlet_list.end(),
+                     std::numeric_limits<std::size_t>::max());
 
         // generate verlet list using grid
         thrust::for_each(
