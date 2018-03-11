@@ -133,9 +133,8 @@ int main()
         for(auto& p : ps)
         {
             max_vel2 = std::max(max_vel2, length_sq(p.velocity));
-            p.position = pb.adjust_position(p.position + dt * p.velocity +
-                                            (dt * dt / 2) * p.force / p.mass);
             p.velocity = p.velocity + (dt / 2) * p.force / p.mass;
+            p.position = pb.adjust_position(p.position + dt * p.velocity);
         }
 
         ls.update(ps, pb, std::sqrt(max_vel2));
