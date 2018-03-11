@@ -145,9 +145,9 @@ struct grid
                 for(std::size_t pi = first; pi < last; ++pi)
                 {
                     // index of possible partner
-                    const std::size_t pidx = *(indices + pi);
+                    const std::size_t pidx = indices[pi];
                     if(pidx == i) {continue;}
-                    const float4 pos2 = *(positions + pidx);
+                    const float4 pos2 = positions[pidx];
                     const float dist2 = length_sq(
                             adjust_direction(pos1 - pos2, boundary));
                     if(dist2 < threshold2)
@@ -177,7 +177,7 @@ struct grid
 
     __host__
     grid(const float rc_, const float mergin_, const periodic_boundary b)
-        : rc(rc_), mergin(mergin), boundary(b)
+        : rc(rc_), mergin(mergin_), current_mergin(-1), boundary(b)
     {
         this->Nx = std::max<std::size_t>(3, std::floor(b.width.x / rc));
         this->Ny = std::max<std::size_t>(3, std::floor(b.width.y / rc));
@@ -198,6 +198,20 @@ struct grid
             thrust::make_counting_iterator<std::size_t>(0),
             thrust::make_counting_iterator<std::size_t>(Nx * Ny * Nz),
             this->adjs.begin(), detail::make_adjacents(Nx, Ny, Nz));
+    }
+
+
+    void update(const thrust::device_vector<float4>& ps,
+                const float max_displacement)
+    {
+        current_mergin -= max_displacement;
+        if(current_mergin < 0.0)
+        {
+            // make grid by using p(t+dt)
+            this->assign(ps);
+            current_mergin = rc * mergin;
+        }
+        return;
     }
 
     __host__
@@ -258,7 +272,7 @@ struct grid
         const std::size_t maxN = *thrust::max_element(
                 number_of_particles_in_cell.begin(),
                 number_of_particles_in_cell.end());
-        this->stride = (maxN / 16 + 1) * 16;
+        this->stride = std::ceil((maxN * 27) / 16) * 16;
 
         verlet_list.resize(ps.size() * stride);
         thrust::fill(verlet_list.begin(), verlet_list.end(),
@@ -278,7 +292,8 @@ struct grid
         return;
     }
 
-    float       rc, mergin;
+    const float rc, mergin;
+    float       current_mergin;
     float       rx, ry, rz;
     std::size_t Nx, Ny, Nz;
     std::size_t stride;
