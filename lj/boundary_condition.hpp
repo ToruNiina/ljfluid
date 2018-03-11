@@ -9,7 +9,7 @@ template<typename Real>
 struct periodic_boundary
 {
     periodic_boundary(const vector<Real>& low, const vector<Real>& up) noexcept
-        : width(up - low), halfw((up - low) * 0.5), upper(up), lower(low)
+        : width(up - low), halfw((up - low) / Real(2)), upper(up), lower(low)
     {}
 
     vector<Real> adjust_direction(vector<Real> pos) const noexcept
