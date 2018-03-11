@@ -20,7 +20,7 @@ struct particle
 template<typename T>
 std::ostream& operator<<(std::ostream& os, const particle<T>& p)
 {
-    os << "C      " << std::fixed << std::setprecision(5) << std::showpoint
+    os << "H      " << std::fixed << std::setprecision(5) << std::showpoint
        << std::setw(10) << std::right << p.position.x
        << std::setw(10) << std::right << p.position.y
        << std::setw(10) << std::right << p.position.z;
