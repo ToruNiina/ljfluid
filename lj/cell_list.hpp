@@ -120,15 +120,19 @@ struct cell_list
         for(std::size_t i=0; i<ps.size(); ++i)
         {
             const auto& pos1 = ps[i].position;
-            const auto& cell = cells[calc_index(pos1)];
+            const std::size_t cell_idx = calc_index(pos1);
+            assert(cell_idx < cells.size());
+            const auto& cell = cells[cell_idx];
 
             const std::size_t first = last;
             for(const auto cidx : cell.first)
             {
+                assert(cidx < cells.size());
                 for(const auto pici : cells[cidx].second)
                 {
                     assert(pici.second == cidx);
                     const auto  j = pici.first;
+                    assert(j < ps.size());
                     if(j <= i) {continue;}
                     const auto& pos2 = ps[j].position;
                     const Real dist2 = length_sq(b.adjust_direction(pos1 - pos2));
@@ -173,7 +177,7 @@ struct cell_list
         const std::size_t ix = std::floor((pos.x - lower.x) * rx);
         const std::size_t iy = std::floor((pos.y - lower.y) * ry);
         const std::size_t iz = std::floor((pos.z - lower.z) * rz);
-        return this->calc_index(ix, iy, iz);
+        return this->calc_index((ix==Nx)?0:ix, (iy==Ny)?0:iy, (iz==Nz)?0:iz);
     }
 
     const Real dt;
