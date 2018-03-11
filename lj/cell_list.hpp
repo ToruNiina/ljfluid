@@ -4,6 +4,7 @@
 #include <lj/particle.hpp>
 #include <lj/boundary_condition.hpp>
 #include <array>
+#include <algorithm>
 #include <cassert>
 
 namespace lj
