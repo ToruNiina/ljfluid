@@ -57,17 +57,15 @@ struct particle_container
 
     void push_host_force()
     {
-        thrust::copy(host_forces.begin(), host_forces.end(), buf_forces.begin());
+        this->buf_forces = this->host_forces;
         thrust::transform(buf_forces.begin(), buf_forces.end(),
             device_forces.begin(), device_forces.begin(), vec_add());
     }
 
     void pull_device_particles()
     {
-        thrust::copy(this->device_positions.begin(), this->device_positions.end(),
-                     this->host_positions.begin());
-        thrust::copy(this->device_velocities.begin(), this->device_velocities.end(),
-                     this->host_velocities.begin());
+        this->host_positions  = this->device_positions;
+        this->host_velocities = this->device_velocities;
         return;
     }
 
