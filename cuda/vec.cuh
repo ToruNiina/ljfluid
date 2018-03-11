@@ -12,31 +12,11 @@ inline float4 operator+(const float4& lhs, const float4& rhs)
 }
 
 __device__ __host__
-inline float4 operator+(const float4& lhs, const float rhs)
-{
-    return make_float4(lhs.x + rhs, lhs.y + rhs, lhs.z + rhs, 0.0);
-}
-
-__device__ __host__
-inline float4 operator+(const float lhs, const float4& rhs)
-{
-    return make_float4(lhs + rhs.x, lhs + rhs.y, lhs + rhs.z, 0.0);
-}
-
-__device__ __host__
 inline float4& operator+=(float4& lhs, const float4& rhs)
 {
     lhs.x += rhs.x; lhs.y += rhs.y; lhs.z += rhs.z;
     return lhs;
 }
-
-__device__ __host__
-inline float4& operator+=(float4& lhs, const float rhs)
-{
-    lhs.x += rhs; lhs.y += rhs; lhs.z += rhs;
-    return lhs;
-}
-
 
 
 __device__ __host__
@@ -46,31 +26,11 @@ inline float4 operator-(const float4& lhs, const float4& rhs)
 }
 
 __device__ __host__
-inline float4 operator-(const float4& lhs, const float rhs)
-{
-    return make_float4(lhs.x - rhs, lhs.y - rhs, lhs.z - rhs, 0.0);
-}
-
-__device__ __host__
-inline float4 operator-(const float lhs, const float4& rhs)
-{
-    return make_float4(lhs - rhs.x, lhs - rhs.y, lhs - rhs.z, 0.0);
-}
-
-__device__ __host__
 inline float4& operator-=(float4& lhs, const float4& rhs)
 {
     lhs.x -= rhs.x; lhs.y -= rhs.y; lhs.z -= rhs.z;
     return lhs;
 }
-
-__device__ __host__
-inline float4& operator-=(float4& lhs, const float rhs)
-{
-    lhs.x -= rhs; lhs.y -= rhs; lhs.z -= rhs;
-    return lhs;
-}
-
 
 
 __device__ __host__
