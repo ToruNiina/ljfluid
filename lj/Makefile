@@ -17,4 +17,4 @@ clean: ## remove executable binary, "traj.xyz" and "energy.dat".
 .PHONY: rerun
 rerun: clean bluid run ## re-build and re-run simulation.
 
-.DEFAULT_GOAL := help
+.DEFAULT_GOAL := build
