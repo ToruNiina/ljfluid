@@ -137,10 +137,19 @@ float calc_kinetic_energy(const particle_container& ps)
             kinetic_energy_calculator()) * 0.5;
 }
 
+struct velocity_size_comparator : thrust::binary_function<bool, float4, float4>
+{
+    __device__ __host__
+    bool operator()(float4 lhs, float4 rhs) const noexcept
+    {
+        return length_sq(lhs) < length_sq(rhs);
+    }
+};
+
 struct velocity_verlet_update_1
 {
     velocity_verlet_update_1(float dt_, periodic_boundary b_)
-        : dt(dt_), dt_half(dt_ * 0.5), b(b_)
+        : dt(dt_), dt_half(dt_ / 2), b(b_)
     {}
 
     template<typename Tuple>
@@ -151,6 +160,7 @@ struct velocity_verlet_update_1
                 thrust::get<1>(mpvf) + dt * thrust::get<2>(mpvf) +
                 (dt * dt_half / thrust::get<0>(mpvf)) * thrust::get<3>(mpvf),
                 b);
+        assert(is_inside_of(thrust::get<1>(mpvf), b));
 
         thrust::get<2>(mpvf) = thrust::get<2>(mpvf) +
                 (dt_half / thrust::get<0>(mpvf)) * thrust::get<3>(mpvf);
@@ -162,10 +172,11 @@ struct velocity_verlet_update_1
     const periodic_boundary b;
 };
 
+
 struct velocity_verlet_update_2
 {
     velocity_verlet_update_2(float dt_)
-        : dt(dt_), dt_half(dt_ * 0.5)
+        : dt(dt_), dt_half(dt_ / 2)
     {}
 
     template<typename Tuple>
@@ -212,7 +223,7 @@ int main()
     const float4 lower    = make_float4( 0.0,  0.0,  0.0, 0.0);
     const auto   boundary = lj::make_boundary(lower, upper);
 
-    const std::size_t step = 100000;
+    const std::size_t step = 1000000;
     const std::size_t N    = std::pow(4, 3);
     const std::size_t seed = 123456789;
     const float kB  = 1.986231313e-3;
