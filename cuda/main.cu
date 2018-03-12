@@ -228,7 +228,6 @@ int main()
 
     const std::size_t N    = std::pow(NperEdge, 3);
     const std::size_t step = 1000000;
-    const std::size_t seed = 123456789;
     const float kB  = 1.986231313e-3;
     const float T   = 300.0;
     const float dt  = 0.01;
@@ -248,12 +247,14 @@ int main()
             ps.device_positions.begin(),
             position_initializer(log2NperEdge));
 
-        std::mt19937 mt(seed);
-        std::normal_distribution<Real> boltz(0.0, std::sqrt(kB * T));
+        std::mt19937 mt(123456789);
+        std::normal_distribution<float> boltz(0.0f, std::sqrt(kB * T));
         for(std::size_t i=0; i<N; ++i)
         {
-            ps.host_velocities[i] =
-                make_float4(boltz(mt), boltz(mt), boltz(mt), 0.0);
+            const float vx = boltz(mt);
+            const float vy = boltz(mt);
+            const float vz = boltz(mt);
+            ps.host_velocities[i] = make_float4(vx, vy, vz, 0.0);
         }
         ps.device_velocities = ps.host_velocities;
 

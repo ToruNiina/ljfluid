@@ -109,7 +109,11 @@ int main()
                Real(1) + Real(2) * ((i & (N-1) << log2N * 0) >> log2N * 0),
                Real(1) + Real(2) * ((i & (N-1) << log2N * 1) >> log2N * 1),
                Real(1) + Real(2) * ((i & (N-1) << log2N * 2) >> log2N * 2)};
-            ps[i].velocity = lj::vector<Real>{boltz(mt), boltz(mt), boltz(mt)};
+
+            const Real vx = boltz(mt);
+            const Real vy = boltz(mt);
+            const Real vz = boltz(mt);
+            ps[i].velocity = lj::vector<Real>{ vx,  vy,  vz};
             ps[i].force    = lj::vector<Real>{0.0, 0.0, 0.0};
         }
     }
