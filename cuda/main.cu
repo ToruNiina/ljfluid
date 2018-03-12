@@ -352,25 +352,23 @@ int main()
                 ps.device_velocities.cbegin(), ps.device_velocities.cend(),
                 lj::velocity_size_comparator())));
 
-        // p become p(t + dt), v become v(t + dt/2) here
+        // p become p(t + dt), v become v(t + dt/2), f become zero here
         thrust::for_each(thrust::make_zip_iterator(thrust::make_tuple(
-                ps.device_masses.begin(), ps.device_positions.begin(),
+                ps.device_masses.begin(),     ps.device_positions.begin(),
                 ps.device_velocities.begin(), ps.device_forces.begin())),
             thrust::make_zip_iterator(thrust::make_tuple(
-                ps.device_masses.end(), ps.device_positions.end(),
+                ps.device_masses.end(),     ps.device_positions.end(),
                 ps.device_velocities.end(), ps.device_forces.end())),
             update1);
 
-        cudaDeviceSynchronize();
-
         // update cell-list
-        grid.update(ps.device_positions/* p(t+dt) */, 2 * maxv * dt /* max(v(t)) * dt */);
+        grid.update(ps.device_positions, 2 * maxv * dt);
 
-        const lj::force_calculator  calc_f(ps.device_positions.data().get(),
-                                           grid.verlet_list.data().get(),
-                                           grid.number_of_neighbors.data().get(),
-                                           grid.stride,
-                                           boundary);
+        const lj::force_calculator calc_f(ps.device_positions.data().get(),
+                                          grid.verlet_list.data().get(),
+                                          grid.number_of_neighbors.data().get(),
+                                          grid.stride,
+                                          boundary);
 
         // calculate f(t+dt) using p(t+dt).
         thrust::transform(thrust::counting_iterator<std::size_t>(0),
@@ -379,8 +377,9 @@ int main()
 
         cudaDeviceSynchronize();
 
-        // v become v(t + dt), f become zero here
-        thrust::for_each(thrust::make_zip_iterator(thrust::make_tuple(
+        // v become v(t + dt) here
+        thrust::for_each(
+            thrust::make_zip_iterator(thrust::make_tuple(
                 ps.device_masses.begin(),
                 ps.device_velocities.begin(), ps.device_forces.begin())),
             thrust::make_zip_iterator(thrust::make_tuple(
