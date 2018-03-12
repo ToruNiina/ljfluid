@@ -135,6 +135,7 @@ int main()
             max_vel2 = std::max(max_vel2, length_sq(p.velocity));
             p.velocity = p.velocity + (dt / 2) * p.force / p.mass;
             p.position = pb.adjust_position(p.position + dt * p.velocity);
+            p.force    = lj::vector<Real>{0.0, 0.0, 0.0};
         }
 
         ls.update(ps, pb, std::sqrt(max_vel2));
@@ -143,7 +144,6 @@ int main()
         for(auto& p : ps)
         {
             p.velocity = p.velocity + (dt / 2) * p.force / p.mass;
-            p.force    = lj::vector<Real>{0.0, 0.0, 0.0};
         }
     }
     std::cout << ps << std::flush;
