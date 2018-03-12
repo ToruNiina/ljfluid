@@ -149,17 +149,17 @@ struct velocity_verlet_update_1
     {}
 
     template<typename Tuple>
-    __device__ __host__
+    __host__ __device__
     void operator()(Tuple mpvf) const noexcept
     {
-        thrust::get<1>(mpvf) = adjust_position(
-                thrust::get<1>(mpvf) + dt * thrust::get<2>(mpvf) +
-                (dt * dt_half / thrust::get<0>(mpvf)) * thrust::get<3>(mpvf),
-                b);
-        assert(is_inside_of(thrust::get<1>(mpvf), b));
+        float const   m = thrust::get<0>(mpvf);
+        float4&       p = thrust::get<1>(mpvf);
+        float4&       v = thrust::get<2>(mpvf);
+        float4&       f = thrust::get<3>(mpvf);
 
-        thrust::get<2>(mpvf) = thrust::get<2>(mpvf) +
-                (dt_half / thrust::get<0>(mpvf)) * thrust::get<3>(mpvf);
+        v += (dt / 2) * f / m;
+        p = adjust_position(p + v * dt, b);
+        f = make_float4(0,0,0,0);
         return;
     }
 
@@ -176,12 +176,14 @@ struct velocity_verlet_update_2
     {}
 
     template<typename Tuple>
-    __device__ __host__
+    __host__ __device__
     void operator()(Tuple mvf) const noexcept
     {
-        thrust::get<1>(mvf) = thrust::get<1>(mvf) +
-                (dt_half / thrust::get<0>(mvf)) * thrust::get<2>(mvf);
-        thrust::get<2>(mvf) = make_float4(0,0,0,0);
+        float  const  m = thrust::get<0>(mvf);
+        float4&       v = thrust::get<1>(mvf);
+        float4 const& f = thrust::get<2>(mvf);
+
+        v += (dt / 2) * f / m;
         return;
     }
 
