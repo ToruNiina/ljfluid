@@ -322,6 +322,11 @@ int main()
 
             ps.pull_device_particles();
 
+            for(std::size_t i=0; i<N; ++i)
+            {
+                assert(is_inside_of(ps.host_positions[i], boundary));
+            }
+
             std::ofstream traj("traj.xyz", std::ios_base::app | std::ios_base::out);
             traj << N << "\n\n";
             for(std::size_t i=0; i<N; ++i)
