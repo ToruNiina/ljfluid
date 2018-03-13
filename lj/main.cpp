@@ -3,6 +3,7 @@
 // #include <lj/verletlist.hpp>
 #include <lj/cell_list.hpp>
 #include <iterator>
+#include <fstream>
 #include <random>
 
 namespace lj
@@ -84,7 +85,7 @@ int main()
 {
 //     typedef double Real;
     typedef float Real;
-    const std::size_t log2N = 4;
+    const std::size_t log2N = 2;
 
     const std::size_t N = std::pow(2, log2N);
     const lj::vector<Real> upper{N*2.0, N*2.0, N*2.0};
@@ -118,19 +119,49 @@ int main()
         }
     }
 
+    {
+        std::ofstream neigh("neigh.xyz");
+        std::ofstream velo("velo.xyz");
+    }
+
     ls.make(ps, pb);
+    lj::calc_force(ps, pb, ls);
 
     std::cerr << "time\tkinetic\tpotential\ttotal\n";
-    lj::calc_force(ps, pb, ls);
     for(std::size_t timestep=0; timestep < 100000; ++timestep)
     {
-        if(timestep % 1000 == 0)
+//         if(timestep % 100 == 0)
         {
             const Real Ek = lj::calc_kinetic_energy(ps);
             const Real Ep = lj::calc_potential_energy(ps, pb, ls);
             std::cerr << timestep * dt << '\t' << Ek << '\t' << Ep << '\t'
                       << Ek + Ep << '\n';
             std::cout << ps << std::flush;
+
+            std::ofstream velo("velo.xyz", std::ios_base::app | std::ios_base::out);
+            velo << ps.size() << '\n';
+            velo << "t = " << timestep * dt << '\n';
+            for(const auto& p : ps)
+            {
+                velo << "H      "
+                     << std::fixed << std::setprecision(5) << std::showpoint
+                     << std::setw(10) << std::right << p.velocity.x
+                     << std::setw(10) << std::right << p.velocity.y
+                     << std::setw(10) << std::right << p.velocity.z << '\n';
+            }
+
+            std::ofstream neigh("neigh.xyz", std::ios_base::app | std::ios_base::out);
+            neigh << '\n';
+            for(std::size_t i=0; i<ps.size(); ++i)
+            {
+                neigh << '{';
+                for(std::size_t n : ls.neighbors(i))
+                {
+                    neigh << n << ", ";
+                }
+                neigh << "}\n";
+            }
+            neigh << std::endl;
         }
 
         Real max_vel2 = 0.0;
