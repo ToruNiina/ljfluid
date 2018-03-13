@@ -266,6 +266,7 @@ int main()
     {
         std::ofstream traj("traj.xyz");
         std::ofstream velo("velo.xyz");
+        std::ofstream neigh("neigh.xyz");
     }
 
     lj::grid grid(lj::sgm() * lj::cutoff(), lj::mergin(), boundary);
@@ -350,6 +351,20 @@ int main()
                      << std::setw(10) << std::right << v.y
                      << std::setw(10) << std::right << v.z << '\n';
             }
+
+            std::ofstream neigh("neigh.xyz", std::ios_base::app | std::ios_base::out);
+            neigh << '\n';
+            for(std::size_t i=0; i<ps.device_positions.size(); ++i)
+            {
+                const std::size_t offset = i * grid.stride;
+                neigh << '{';
+                for(std::size_t n=0; n<grid.number_of_neighbors[i]; ++n)
+                {
+                    neigh << grid.verlet_list[n + offset] << ", ";
+                }
+                neigh << "}\n";
+            }
+            neigh << std::endl;
         }
 
         // get max(v(t)).
