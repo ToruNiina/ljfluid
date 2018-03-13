@@ -81,7 +81,25 @@ struct make_adjacents
     {
         return k * Ny * Nx + j * Nx + i;
     }
+
 };
+
+__device__ __host__
+void sort(std::size_t* const region, const std::size_t len)
+{
+    for(std::size_t i=0; i<len-1; ++i)
+    {
+        for(std::size_t j=i+1; j<len; ++j)
+        {
+            if(region[i] > region[j])
+            {
+                std::size_t tmp = region[i];
+                region[i] = region[j];
+                region[j] = tmp;
+            }
+        }
+    }
+}
 
 } // detail
 
@@ -159,6 +177,7 @@ struct grid
                 }
             }
             *(num_neighbor + i) = n_neigh;
+            detail::sort(verlet_list + i*stride, n_neigh);
             assert(n_neigh < stride);
             return ;
         }
