@@ -118,9 +118,12 @@ struct grid
         __host__ __device__
         std::size_t operator()(float4 pos) const noexcept
         {
-            const std::size_t i = floorf((pos.x - low_x) * rx);
-            const std::size_t j = floorf((pos.y - low_y) * ry);
-            const std::size_t k = floorf((pos.z - low_z) * rz);
+            std::size_t i = floorf((pos.x - low_x) * rx);
+            std::size_t j = floorf((pos.y - low_y) * ry);
+            std::size_t k = floorf((pos.z - low_z) * rz);
+            if(i == Nx) {i = 0;}
+            if(j == Ny) {j = 0;}
+            if(k == Nz) {k = 0;}
             return k * Ny * Nx + j * Nx + i;
         }
 
