@@ -263,25 +263,61 @@ struct grid
         //  v
         // cid of bin    = {1, 2, 3, 5, ...}
         // num p in bin  = {3, 2, 4, 2, ...}
-       const auto cellid_of_bins_end = thrust::reduce_by_key(
+       const auto tmp_number_of_particles_end = thrust::reduce_by_key(
                 cellid_of_particles.begin(), cellid_of_particles.end(),
                 thrust::constant_iterator<std::size_t>(1),
                 cellid_of_bins.begin(),
                 tmp_number_of_particles.begin(),
-                thrust::equal_to<std::size_t>()).first;
+                thrust::equal_to<std::size_t>()).second;
+
+        /* {
+            thrust::host_vector<std::size_t> host_cellid_of_bins(cellid_of_bins);
+            thrust::host_vector<std::size_t> host_num_particles(tmp_number_of_particles);
+
+            std::cerr << "cellids of bins = ";
+            for(std::size_t i=0; i<host_cellid_of_bins.size(); ++i)
+            {
+                std::cerr << host_cellid_of_bins[i] << ", ";
+            }
+            std::cerr << '\n';
+            std::cerr << "num of particles = ";
+            for(std::size_t i=0; i<host_num_particles.size(); ++i)
+            {
+                std::cerr << host_num_particles[i] << ", ";
+            }
+            std::cerr << '\n';
+        } */
 
         // avoid empty cell problem
-        // cid of bin    = {1, 2, 3, 5, ...} // grid #4 is empty!
-        // num p in bin  = {3, 2, 4, 2, ...}
+        // cid of bin    = {1, 2, 3, 5, ...} <- map // grid #4 is empty!
+        // num p in bin  = {3, 2, 4, 2, ...} <- value will be scattered
         //  v
         // cid of bin    = {1, 2, 3, 4, 5, ...}
         // num p in bin  = {3, 2, 4, 0, 2, ...}
         thrust::fill(number_of_particles_in_cell.begin(),
                      number_of_particles_in_cell.end(), 0);
-        thrust::gather(cellid_of_bins.begin(),
-                       cellid_of_bins_end,
-                       tmp_number_of_particles.begin(),
-                       number_of_particles_in_cell.begin());
+        thrust::scatter(tmp_number_of_particles.begin(),
+                        tmp_number_of_particles_end,
+                        cellid_of_bins.begin(),
+                        number_of_particles_in_cell.begin());
+
+        /* {
+            thrust::host_vector<std::size_t> host_cellid_of_bins(cellid_of_bins);
+            thrust::host_vector<std::size_t> host_num_particles(number_of_particles_in_cell);
+
+            std::cerr << "cellids of bins = ";
+            for(std::size_t i=0; i<host_cellid_of_bins.size(); ++i)
+            {
+                std::cerr << host_cellid_of_bins[i] << ", ";
+            }
+            std::cerr << '\n';
+            std::cerr << "num of particles = ";
+            for(std::size_t i=0; i<host_num_particles.size(); ++i)
+            {
+                std::cerr << host_num_particles[i] << ", ";
+            }
+            std::cerr << '\n';
+        } */
 
         thrust::inclusive_scan(number_of_particles_in_cell.begin(),
                                number_of_particles_in_cell.end(),
