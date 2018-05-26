@@ -87,6 +87,7 @@ struct make_adjacents
 __device__ __host__
 void sort(std::size_t* const region, const std::size_t len)
 {
+    if(len < 2){return;}
     for(std::size_t i=0; i<len-1; ++i)
     {
         for(std::size_t j=i+1; j<len; ++j)
