@@ -22,6 +22,15 @@ __device__ __host__ constexpr float eps()    noexcept {return 1.0f;}
 __device__ __host__ constexpr float cutoff() noexcept {return 2.5f;}
 __device__ __host__ constexpr float mergin() noexcept {return 0.1f;}
 
+__device__ __host__ constexpr float pow6(const float x) noexcept
+{
+    return x * x * x * x * x * x;
+}
+__device__ __host__ constexpr float e_at_cutoff() noexcept
+{
+    return 4 * eps() * pow6(1.0f / cutoff()) * (pow6(1.0f / cutoff()) - 1.0f);
+}
+
 struct force_calculator
 {
     __host__
@@ -105,7 +114,7 @@ struct energy_calculator
             const float  sgmr = sgm() * invr;
             const float  sr3  = sgmr * sgmr * sgmr;
             const float  sr6  = sr3 * sr3;
-            energy += 4 * eps() * sr6 * (sr6 - 1.0);
+            energy += 4 * eps() * sr6 * (sr6 - 1.0) - e_at_cutoff();
         }
 
         return energy / 2;
@@ -265,7 +274,6 @@ int main()
         thrust::fill(ps.device_forces.begin(), ps.device_forces.end(),
                      make_float4(0, 0, 0, 0));
     }
-    cudaDeviceSynchronize();
 
     {
         std::ofstream traj("traj.xyz");
@@ -393,7 +401,6 @@ int main()
         const float maxv = lj::length(*(thrust::max_element(
                 ps.device_velocities.cbegin(), ps.device_velocities.cend(),
                 lj::velocity_size_comparator())));
-        cudaDeviceSynchronize();
         /* std::cerr << "got." << std::endl; */
 
         // p become p(t + dt), v become v(t + dt/2), f become zero here
@@ -405,13 +412,11 @@ int main()
                 ps.device_masses.end(),     ps.device_positions.end(),
                 ps.device_velocities.end(), ps.device_forces.end())),
             update1);
-        cudaDeviceSynchronize();
         /* std::cerr << "calculated" << std::endl; */
 
         // update cell-list
         /* std::cerr << "update cell list" << std::endl; */
         grid.update(ps.device_positions, 2 * maxv * dt);
-        cudaDeviceSynchronize();
         /* std::cerr << "updated" << std::endl; */
 
         /* std::cerr << "create calc_f" << std::endl; */
@@ -427,7 +432,6 @@ int main()
         thrust::transform(thrust::counting_iterator<std::size_t>(0),
                           thrust::counting_iterator<std::size_t>(N),
                           ps.device_forces.begin(), calc_f);
-        cudaDeviceSynchronize();
         /* std::cerr << "f(t+dt) calculated." << std::endl; */
 
         // v become v(t + dt) here
@@ -440,7 +444,6 @@ int main()
                 ps.device_masses.end(),
                 ps.device_velocities.end(), ps.device_forces.end())),
             update2);
-        cudaDeviceSynchronize();
         /* std::cerr << "v(t+dt) calculated." << std::endl; */
     }
     const auto stop = std::chrono::system_clock::now();
