@@ -36,7 +36,7 @@ void calc_force(std::vector<particle<Real>>& ps,
 
             const Real sgmr  = sgm<Real> * invr;
             const Real sr6 = std::pow(sgmr, 6);
-            const auto   f = dpos * (24 * eps<Real> * sr6 * (1 - 2 * sr6) * invr);
+            const auto   f = dpos * (24 * eps<Real> * sr6 * (1 - 2 * sr6) * invr) * invr;
             ps[i].force += f;
             ps[j].force -= f;
         }

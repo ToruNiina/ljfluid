@@ -57,7 +57,7 @@ struct force_calculator
             const float sgmr = sgm() * invr;
             const float sr3  = sgmr * sgmr * sgmr;
             const float sr6  = sr3 * sr3;
-            const float coef = 24 * eps() * sr6 * (1.0 - 2 * sr6) * invr;
+            const float coef = 24 * eps() * sr6 * (1.0 - 2 * sr6) * invr * invr;
 
             force = force + dpos * coef;
         }
