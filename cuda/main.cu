@@ -1,6 +1,6 @@
-#include <cuda/particle.cuh>
-#include <cuda/boundary_condition.cuh>
-#include <cuda/grid.cuh>
+#include "particle.cuh"
+#include "boundary_condition.cuh"
+#include "grid.cuh"
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 #include <thrust/transform_reduce.h>
@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <iterator>
 #include <iostream>
+#include <chrono>
 #include <fstream>
 #include <cassert>
 #include <cmath>
@@ -38,6 +39,7 @@ struct force_calculator
         const float4 pos1 = *(positions + i);
 
         const std::size_t n_neigh = *(num_neighbors + i);
+        assert(n_neigh < stride);
         const std::size_t offset  = i * stride;
 
         for(std::size_t idx=0; idx<n_neigh; ++idx)
@@ -45,6 +47,7 @@ struct force_calculator
             assert(idx != std::numeric_limits<std::size_t>::max());
 
             const std::size_t j = *(verlet_list + offset + idx);
+            /* assert(j < 64); */
 
             const float4 pos2 = *(positions + j);
             const float4 dpos = adjust_direction(pos2 - pos1, boundary);
@@ -92,7 +95,7 @@ struct energy_calculator
         {
             assert(idx != std::numeric_limits<std::size_t>::max());
             const std::size_t j = verlet_list[offset + idx];
-            assert(j < 64);
+            /* assert(j < 64); */
             const float4 pos2 = positions[j];
 
             const float4 dpos = adjust_direction(pos2 - pos1, boundary);
@@ -127,6 +130,7 @@ struct kinetic_energy_calculator
 
 float calc_kinetic_energy(const particle_container& ps)
 {
+    /* std::cerr << "calc kinetic energy called." << std::endl; */
     return thrust::inner_product(
             ps.device_masses.cbegin(),     ps.device_masses.cend(),
             ps.device_velocities.cbegin(), 0.0,
@@ -223,11 +227,11 @@ struct position_initializer
 
 int main()
 {
-    const std::size_t log2NperEdge = 2;
+    const std::size_t log2NperEdge = 6;
     const std::size_t NperEdge     = std::pow(2, log2NperEdge);
 
     const std::size_t N    = std::pow(NperEdge, 3);
-    const std::size_t step = 1000000;
+    const std::size_t step = 10000;
     const float kB  = 1.986231313e-3;
     const float T   = 300.0;
     const float dt  = 0.01;
@@ -300,33 +304,35 @@ int main()
     const lj::velocity_verlet_update_1 update1(dt, boundary);
     const lj::velocity_verlet_update_2 update2(dt);
 
+    const auto start = std::chrono::system_clock::now();
     std::cout << "time\tkinetic\tpotential\ttotal\n";
     for(std::size_t s=0; s < step; ++s)
     {
-        /* if(s % 100 == 0) */
+        /* std::cerr << "start main loop." << std::endl; */
+        if(s % 100 == 0)
         {
+            const float Ek = lj::calc_kinetic_energy(ps);
+            /* std::cerr << "kinetic energy calculated." << std::endl; */
+
             const lj::energy_calculator calc_e(
                     ps.device_positions.data().get(),
                     grid.verlet_list.data().get(),
                     grid.number_of_neighbors.data().get(),
                     grid.stride,
                     boundary);
+            /* std::cerr << "energy calculator prepaired." << std::endl; */
 
-            const float Ek = lj::calc_kinetic_energy(ps);
             const float Ep = thrust::transform_reduce(
                     thrust::counting_iterator<std::size_t>(0),
                     thrust::counting_iterator<std::size_t>(N),
                     calc_e, 0.0, thrust::plus<float>());
+            /* std::cerr << "potential energy calculated." << std::endl; */
 
             std::cout << s * dt << '\t' << Ek << '\t' << Ep << '\t'
                       << Ek + Ep << '\n';
 
             ps.pull_device_particles();
-
-            for(std::size_t i=0; i<N; ++i)
-            {
-                assert(is_inside_of(ps.host_positions[i], boundary));
-            }
+            /* std::cerr << "positions of particles copied D->H." << std::endl; */
 
             std::ofstream traj("traj.xyz", std::ios_base::app | std::ios_base::out);
             traj << N << "\n\n";
@@ -351,7 +357,7 @@ int main()
                      << std::setw(10) << std::right << v.y
                      << std::setw(10) << std::right << v.z << '\n';
             }
-
+/*
             std::ofstream neigh("neigh.xyz", std::ios_base::app | std::ios_base::out);
             neigh << '\n';
             for(std::size_t i=0; i<ps.device_positions.size(); ++i)
@@ -365,14 +371,33 @@ int main()
                 neigh << "}\n";
             }
             neigh << std::endl;
+            std::cerr << "output end." << std::endl; */
+
+            bool is_explodes = false;
+            for(std::size_t i=0; i<N; ++i)
+            {
+                if(not is_inside_of(ps.host_positions[i], boundary))
+                {
+                    std::cerr << "p[" << i << "] = {"
+                              << ps.host_positions[i].x << ", "
+                              << ps.host_positions[i].y << ", "
+                              << ps.host_positions[i].z << "}\n";
+                    is_explodes = true;
+                }
+            }
+            assert(not is_explodes);
+            /* std::cerr << "positions are checked whether inside of the boundary." << std::endl; */
         }
 
-        // get max(v(t)).
+        /* std::cerr << "get max(v(t))." << std::endl; */
         const float maxv = lj::length(*(thrust::max_element(
                 ps.device_velocities.cbegin(), ps.device_velocities.cend(),
                 lj::velocity_size_comparator())));
+        cudaDeviceSynchronize();
+        /* std::cerr << "got." << std::endl; */
 
         // p become p(t + dt), v become v(t + dt/2), f become zero here
+        /* std::cerr << "calc p(t+dt), v(t+dt/2), f = 0" << std::endl; */
         thrust::for_each(thrust::make_zip_iterator(thrust::make_tuple(
                 ps.device_masses.begin(),     ps.device_positions.begin(),
                 ps.device_velocities.begin(), ps.device_forces.begin())),
@@ -380,24 +405,33 @@ int main()
                 ps.device_masses.end(),     ps.device_positions.end(),
                 ps.device_velocities.end(), ps.device_forces.end())),
             update1);
+        cudaDeviceSynchronize();
+        /* std::cerr << "calculated" << std::endl; */
 
         // update cell-list
+        /* std::cerr << "update cell list" << std::endl; */
         grid.update(ps.device_positions, 2 * maxv * dt);
+        cudaDeviceSynchronize();
+        /* std::cerr << "updated" << std::endl; */
 
+        /* std::cerr << "create calc_f" << std::endl; */
         const lj::force_calculator calc_f(ps.device_positions.data().get(),
                                           grid.verlet_list.data().get(),
                                           grid.number_of_neighbors.data().get(),
                                           grid.stride,
                                           boundary);
+        /* std::cerr << "created." << std::endl; */
 
         // calculate f(t+dt) using p(t+dt).
+        /* std::cerr << "calculate f(t+dt)" << std::endl; */
         thrust::transform(thrust::counting_iterator<std::size_t>(0),
                           thrust::counting_iterator<std::size_t>(N),
                           ps.device_forces.begin(), calc_f);
-
         cudaDeviceSynchronize();
+        /* std::cerr << "f(t+dt) calculated." << std::endl; */
 
         // v become v(t + dt) here
+        /* std::cerr << "caluclate v(t+dt)" << std::endl; */
         thrust::for_each(
             thrust::make_zip_iterator(thrust::make_tuple(
                 ps.device_masses.begin(),
@@ -406,7 +440,11 @@ int main()
                 ps.device_masses.end(),
                 ps.device_velocities.end(), ps.device_forces.end())),
             update2);
+        cudaDeviceSynchronize();
+        /* std::cerr << "v(t+dt) calculated." << std::endl; */
     }
+    const auto stop = std::chrono::system_clock::now();
+    std::cerr << "it took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " [ms]\n";
 
     {
         const lj::energy_calculator calc_e(ps.device_positions.data().get(),
